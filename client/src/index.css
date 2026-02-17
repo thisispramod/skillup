@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans bg-slate-50 text-slate-900 antialiased;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+  }
+  
+  .card-premium {
+    @apply bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300;
+  }
+
+  .btn-premium {
+    @apply inline-flex items-center justify-center px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-primary-gradient {
+    @apply btn-premium bg-gradient-to-tr from-primary-600 to-primary-400 text-white shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 hover:-translate-y-0.5;
+  }
+
+  .material-symbols-rounded {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    display: inline-block;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full hover:bg-slate-300;
+}
+
+/* SweetAlert2 Customization */
+.swal2-popup {
+  @apply !rounded-3xl !p-6;
+}
+
+.swal2-title {
+  @apply !text-2xl !font-bold !text-slate-800;
+}
+
+.swal2-confirm {
+  @apply !bg-primary-600 !rounded-xl !px-8 !py-3 !text-base !font-semibold !shadow-lg !shadow-primary-500/30 !transition-all hover:!bg-primary-700 !outline-none !border-none;
+}
+
+.swal2-cancel {
+  @apply !bg-slate-100 !text-slate-600 !rounded-xl !px-8 !py-3 !text-base !font-semibold !transition-all hover:!bg-slate-200 !outline-none !border-none;
+}
