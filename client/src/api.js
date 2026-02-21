@@ -1,17 +1,17 @@
 import axios from 'axios';
 
-const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const productionURL = 'https://tuts-etests.onrender.com/api';
+//const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+//const productionURL = 'http://65.0.103.169:5005/api';
 
 const api = axios.create({
-    baseURL: !isLocalhost ? productionURL : (import.meta.env.VITE_API_URL || 'https://tuts-etests.onrender.com/api'), 
-    
+  //baseURL: !isLocalhost ? productionURL : (import.meta.env.VITE_API_URL || 'https://tuts-etests.onrender.com/api'), 
+  baseURL: import.meta.env.VITE_API_URL || '/api',
 });
 
-console.log({
-    'isLocalhost' : isLocalhost,
-    'VITE_API_URL': import.meta.env.VITE_API_URL,
-});
+//console.log({
+  //  'isLocalhost' : isLocalhost,
+    // 'VITE_API_URL': import.meta.env.VITE_API_URL,
+// });
 
 // Auto-add token to requests
 api.interceptors.request.use((config) => {

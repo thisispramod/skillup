@@ -20,7 +20,9 @@ const SECRET_KEY = process.env.JWT_SECRET || 'super_secret_jwt_key_should_be_in_
 const allowedOrigins = [
   "https://thisispramod-etests-app.vercel.app",
   "https://tuts-etests.vercel.app",
-  "http://localhost:5173"
+  "http://localhost:5173",
+  "http://65.0.103.169",
+  "https://65.0.103.169"
 ];
 
 app.use(express.json());
@@ -980,7 +982,7 @@ app.get('/api/admin/mistakes/student/:studentId', authenticateToken, isAdmin, as
 });
 
 initDB().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
+    app.listen(PORT,'0.0.0.0', () => {
+        console.log(`Server is running on port ${PORT}`);
     });
 });

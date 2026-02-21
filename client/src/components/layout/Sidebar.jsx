@@ -59,7 +59,7 @@ const Sidebar = ({ isOpen, toggleSidebar, role, onLogout }) => {
                             <span className="material-symbols-rounded">school</span>
                         </div>
                         <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
-                            SkillCheck
+                            SkillUp
                         </span>
                     </div>
 

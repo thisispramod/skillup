@@ -85,7 +85,7 @@ const Login = () => {
                         <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center text-white mx-auto mb-4">
                             <span className="material-symbols-rounded">school</span>
                         </div>
-                        <h2 className="text-2xl font-bold text-slate-800">SkillCheck</h2>
+                        <h2 className="text-2xl font-bold text-slate-800">SkillUp</h2>
                     </div>
 
                     <div className="mb-10">
