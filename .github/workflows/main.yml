@@ -31,8 +31,8 @@ jobs:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
-        target: /home/admin/skillup/client/dist/
-        source: "client/dist/*"
+        target: /home/admin/skillup/client/
+        source: "client/dist"
         overwrite: true
         rm: false
 
@@ -44,7 +44,7 @@ jobs:
         key: ${{ secrets.SSH_KEY }}
         port: ${{ secrets.SSH_PORT }}
         script: |
-          sudo mv -f /home/admin/skillup/dist/* /var/www/html/
+          sudo mv -f /home/admin/skillup/client/dist/* /var/www/html/
 
     - name: Copy backend code (server) files to server
       uses: appleboy/scp-action@v0.1.0
