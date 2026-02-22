@@ -32,8 +32,9 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         target: /var/www/html/
-        source: "client/dist/*"
+        source: "client/dist"
         overwrite: true
+        debuge: true
         rm: false
 
     - name: Copy backend code (server) files to server
