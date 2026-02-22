@@ -21,8 +21,7 @@ const allowedOrigins = [
   "https://thisispramod-etests-app.vercel.app",
   "https://tuts-etests.vercel.app",
   "http://localhost:5173",
-  "http://65.0.103.169",
-  "https://65.0.103.169"
+  "http://52.66.205.65"
 ];
 
 app.use(express.json());
