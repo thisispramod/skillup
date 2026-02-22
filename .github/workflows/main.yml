@@ -60,6 +60,6 @@ jobs:
           sudo systemctl stop nginx
           sudo systemctl stop mariadb
           npm install
-          pm2 restart backend
+          pm2 restart backend || pm2 start index.js --name backend
           sudo systemctl start mariadb
           sudo systemctl start nginx
