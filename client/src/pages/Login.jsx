@@ -68,7 +68,7 @@ const Login = () => {
                         <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20">
                             <span className="material-symbols-rounded text-3xl mb-2">menu_book</span>
                             <p className="font-bold text-white">Mistake Book</p>
-                            <p className="text-xs text-primary-100/70">Learn from your mistakes</p>
+                            <p className="text-xs text-primary-100/70">Learn from your past mistakes</p>
                         </div>
                     </div>
                 </div>
