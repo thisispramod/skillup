@@ -31,7 +31,7 @@ jobs:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
-        target: /home/skillup/client/dist/
+        target: /home/admin/skillup/client/dist/
         source: "client/dist/*"
         overwrite: true
         rm: false
@@ -43,7 +43,7 @@ jobs:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
-        target: /home/skillup/server/
+        target: /home/admin/skillup/server/
         source: "server/*"
         overwrite: true
         rm: false
@@ -56,7 +56,7 @@ jobs:
         key: ${{ secrets.SSH_KEY }}
         port: ${{ secrets.SSH_PORT }}
         script: |
-          cd /home/skillup/server
+          cd /home/admin/skillup/server
           sudo systemctl stop nginx
           sudo systemctl stop mariadb
           npm install
