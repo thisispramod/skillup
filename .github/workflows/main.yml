@@ -44,6 +44,7 @@ jobs:
         key: ${{ secrets.SSH_KEY }}
         port: ${{ secrets.SSH_PORT }}
         script: |
+          sudo rm -rf /var/www/html/*
           sudo mv -f /home/admin/skillup/client/dist/* /var/www/html/
 
     - name: Copy backend code (server) files to server
