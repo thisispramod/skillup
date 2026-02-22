@@ -1,22 +1,65 @@
-name: Execute deploy script on server
+name: React Build and SCP Deploy
 
 on:
   push:
     branches:
-      - main  # Runs whenever you push to the main branch
+      - main # Trigger on pushes to the main branch
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Executing remote ssh commands using password
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
-            cd /home/admin
-            ./deploy.sh
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18' # Specify the Node.js version your project uses
+
+    - name: Building frontend (client)
+      run: |
+        cd client
+        npm install
+        npm run build
+
+    - name: copy frontend (client) build files to server
+      uses: appleboy/scp-action@v0.1.0
+      with:
+        port: ${{ secrets.SSH_PORT }}
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        target: /home/skillup/client/dist/
+        source: "client/dist/*"
+        overwrite: true
+        rm: false
+
+    - name: Copy backend code (server) files to server
+      uses: appleboy/scp-action@v0.1.0
+      with:
+        port: ${{ secrets.SSH_PORT }}
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        target: /home/skillup/server/
+        source: "server/*"
+        overwrite: true
+        rm: false
+
+    - name: Restarting pm2 and reloading nginx
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.SSH_PORT }}
+        script: |
+          cd /home/skillup/server
+          sudo systemctl stop nginx
+          sudo systemctl stop mariadb
+          npm install
+          pm2 restart backend
+          sudo systemctl start mariadb
+          sudo systemctl start nginx
