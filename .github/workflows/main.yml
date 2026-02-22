@@ -43,8 +43,8 @@ jobs:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
-        target: /home/admin/skillup/server/
-        source: "server/*"
+        target: /home/admin/skillup/
+        source: "server"
         overwrite: true
         rm: false
 
