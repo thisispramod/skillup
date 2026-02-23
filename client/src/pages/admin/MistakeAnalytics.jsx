@@ -153,8 +153,8 @@ const MistakeAnalytics = () => {
                                     {item.count}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-slate-800 line-clamp-1">{item.Question.text}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{item.Question.topic}</p>
+                                    <p className="text-sm font-bold text-slate-800 line-clamp-1">{item.Question?.text || 'Deleted Question'}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{item.Question?.topic || 'N/A'}</p>
                                 </div>
                                 <span className="material-symbols-rounded text-slate-300">chevron_right</span>
                             </div>
