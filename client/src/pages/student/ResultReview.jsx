@@ -283,7 +283,7 @@ const ResultReview = () => {
                                     </div>
                                     <div>
                                         <p className="text-sm text-slate-800 font-bold mb-2">
-                                            Correct Answer: <span className="text-emerald-600 ml-1">Option {q.correct_option}: {q[`option_${q.correct_option?.toLowerCase()}`]}</span>
+                                            Correct Answer: <span className="text-emerald-600 ml-1">Option {q.correct_option}: {q[`option_${q.correct_option?.toLowerCase()}`] || 'N/A'}</span>
                                         </p>
                                         <p className="text-sm text-slate-600 leading-relaxed font-inter italic">
                                             {q.explanation || 'No detailed explanation currently available for this question. Consult your textbook for theoretical context.'}
