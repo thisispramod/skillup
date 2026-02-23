@@ -53,6 +53,7 @@ const MistakeBook = () => {
     };
 
     const filteredMistakes = mistakes.filter(m => {
+        if (!m) return false;
         if (m.status === 'improved' || m.status === 'revised') return false;
         if (filter === 'all') return true;
         if (filter === 'incorrect') return m.is_incorrect;
@@ -62,9 +63,9 @@ const MistakeBook = () => {
     });
 
     const stats = {
-        active: mistakes.filter(m => m.status === 'active').length,
-        improved: mistakes.filter(m => m.status === 'improved').length,
-        total: mistakes.length
+        active: mistakes.filter(m => m && m.status === 'active').length,
+        improved: mistakes.filter(m => m && m.status === 'improved').length,
+        total: mistakes.filter(Boolean).length
     };
 
     if (loading) return (
@@ -101,8 +102,8 @@ const MistakeBook = () => {
                         key={f.id}
                         onClick={() => setFilter(f.id)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${filter === f.id
-                                ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20'
-                                : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                            ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20'
+                            : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
                             }`}
                     >
                         <span className="material-symbols-rounded text-lg">{f.icon}</span>
@@ -139,15 +140,15 @@ const MistakeBook = () => {
                                         {mistake.is_slow && <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold uppercase tracking-wider">Time Limit Exceeded</span>}
                                         {mistake.is_bookmarked && <span className="px-2 py-0.5 rounded-lg bg-primary-50 text-primary-600 text-[10px] font-bold uppercase tracking-wider">Flagged</span>}
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-800 leading-relaxed">{mistake.Question.text}</h3>
+                                    <h3 className="text-lg font-bold text-slate-800 leading-relaxed">{mistake.Question?.text || 'Deleted Question'}</h3>
                                     <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
                                         <div className="flex items-center gap-1">
                                             <span className="material-symbols-rounded text-sm">quiz</span>
-                                            {mistake.Test?.title}
+                                            {mistake.Test?.title || 'Unknown Test'}
                                         </div>
                                         <div className="flex items-center gap-1">
                                             <span className="material-symbols-rounded text-sm">label</span>
-                                            {mistake.Question.topic}
+                                            {mistake.Question?.topic || 'N/A'}
                                         </div>
                                     </div>
                                 </div>
@@ -203,7 +204,7 @@ const MistakeBook = () => {
                 {retryMistake && (
                     <div className="space-y-6">
                         <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                            <p className="text-lg font-bold text-slate-800 leading-relaxed">{retryMistake.Question.text}</p>
+                            <p className="text-lg font-bold text-slate-800 leading-relaxed">{retryMistake.Question?.text || 'Deleted Question'}</p>
                         </div>
 
                         {!retryResult ? (
@@ -213,8 +214,8 @@ const MistakeBook = () => {
                                         key={opt}
                                         onClick={() => setSelectedAnswer(opt)}
                                         className={`flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${selectedAnswer === opt
-                                                ? 'bg-primary-50 border-primary-600 ring-4 ring-primary-500/10'
-                                                : 'bg-white border-slate-100 hover:border-slate-300'
+                                            ? 'bg-primary-50 border-primary-600 ring-4 ring-primary-500/10'
+                                            : 'bg-white border-slate-100 hover:border-slate-300'
                                             }`}
                                     >
                                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer === opt ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-500'
@@ -222,7 +223,7 @@ const MistakeBook = () => {
                                             {opt}
                                         </div>
                                         <span className={`font-semibold ${selectedAnswer === opt ? 'text-primary-900' : 'text-slate-700'}`}>
-                                            {retryMistake.Question[`option_${opt.toLowerCase()}`]}
+                                            {retryMistake.Question?.[`option_${opt.toLowerCase()}`] || 'N/A'}
                                         </span>
                                     </button>
                                 ))}
@@ -230,8 +231,8 @@ const MistakeBook = () => {
                         ) : (
                             <div className="space-y-6">
                                 <div className={`p-6 rounded-3xl border-2 flex items-center gap-4 ${retryResult.isCorrect
-                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                        : 'bg-rose-50 border-rose-200 text-rose-800'
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                    : 'bg-rose-50 border-rose-200 text-rose-800'
                                     }`}>
                                     <span className={`material-symbols-rounded text-4xl ${retryResult.isCorrect ? 'text-emerald-500' : 'text-rose-500'}`}>
                                         {retryResult.isCorrect ? 'check_circle' : 'cancel'}
@@ -246,7 +247,7 @@ const MistakeBook = () => {
                                     <p className="text-sm font-bold text-slate-500 uppercase tracking-widest ml-1">Learning Insight</p>
                                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                                         <p className="text-slate-700 leading-relaxed font-medium">
-                                            {retryMistake.Question.explanation || 'The correct answer is Option ' + retryMistake.Question.correct_option + '.'}
+                                            {retryMistake.Question?.explanation || 'The correct answer is Option ' + retryMistake.Question?.correct_option + '.'}
                                         </p>
                                     </div>
                                 </div>
