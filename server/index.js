@@ -239,6 +239,17 @@ app.put('/api/tests/:id', authenticateToken, isAdmin, async (req, res) => {
     }
 });
 
+// Delete Test
+app.delete('/api/tests/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const test = await Test.findByPk(req.params.id);
+        if (!test) return res.status(404).json({ message: 'Test not found' });
+        await test.destroy();
+        res.json({ message: 'Test deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // Get Single Test (with questions for editing)
 app.get('/api/tests/:id', authenticateToken, async (req, res) => {
     try {
