@@ -121,21 +121,24 @@ const MistakeAnalytics = () => {
                         {analytics?.batchWeakness.length === 0 ? (
                             <p className="p-12 text-center text-slate-400">No data found</p>
                         ) : (
-                            analytics?.batchWeakness.map((batch, idx) => (
-                                <div key={idx} className="space-y-2">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="font-bold text-slate-700">{batch.User?.Batch?.name || 'Unassigned'}</span>
-                                        <span className="text-xs font-bold text-slate-400">{batch.mistake_count} Active Mistakes</span>
+                            analytics?.batchWeakness.map((batch, idx) => {
+                                if (!batch) return null;
+                                return (
+                                    <div key={idx} className="space-y-2">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="font-bold text-slate-700">{batch.User?.Batch?.name || 'Unassigned'}</span>
+                                            <span className="text-xs font-bold text-slate-400">{batch.mistake_count} Active Mistakes</span>
+                                        </div>
+                                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                            <motion.div
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${Math.min(batch.mistake_count * 10, 100)}%` }}
+                                                className="h-full bg-rose-500"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                                        <motion.div
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${Math.min(batch.mistake_count * 10, 100)}%` }}
-                                            className="h-full bg-rose-500"
-                                        />
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </div>
@@ -147,18 +150,21 @@ const MistakeAnalytics = () => {
                         Common Failures
                     </h3>
                     <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                        {analytics?.commonQuestions.map((item, idx) => (
-                            <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4 group hover:border-rose-200 transition-colors">
-                                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-rose-500 font-bold shrink-0">
-                                    {item.count}
+                        {analytics?.commonQuestions.map((item, idx) => {
+                            if (!item) return null;
+                            return (
+                                <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4 group hover:border-rose-200 transition-colors">
+                                    <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-rose-500 font-bold shrink-0">
+                                        {item.count}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-bold text-slate-800 line-clamp-1">{item.Question?.text || 'Deleted Question'}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{item.Question?.topic || 'N/A'}</p>
+                                    </div>
+                                    <span className="material-symbols-rounded text-slate-300">chevron_right</span>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-slate-800 line-clamp-1">{item.Question?.text || 'Deleted Question'}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{item.Question?.topic || 'N/A'}</p>
-                                </div>
-                                <span className="material-symbols-rounded text-slate-300">chevron_right</span>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             </div>
@@ -178,11 +184,14 @@ const MistakeAnalytics = () => {
                                 onChange={handleStudentChange}
                             >
                                 <option className="text-slate-800" value="">Choose a Student...</option>
-                                {students.map(s => (
-                                    <option className="text-slate-800" key={s.id} value={s.id}>
-                                        {s.name} ({s.email.split('@')[0]})
-                                    </option>
-                                ))}
+                                {students.map(s => {
+                                    if (!s) return null;
+                                    return (
+                                        <option className="text-slate-800" key={s.id} value={s.id}>
+                                            {s.name} ({s.email.split('@')[0]})
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
                     </div>
