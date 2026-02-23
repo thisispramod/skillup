@@ -926,7 +926,7 @@ app.get('/api/admin/mistakes/analytics', authenticateToken, isAdmin, async (req,
                 'question_id',
                 [sequelize.fn('COUNT', sequelize.col('Mistake.id')), 'count']
             ],
-            include: [{ model: Question, attributes: ['text', 'topic'] }],
+            include: [{ model: Question, attributes: ['text', 'topic'], required: true }],
             group: ['question_id', 'Question.id'],
             order: [[sequelize.col('count'), 'DESC']],
             limit: 10
