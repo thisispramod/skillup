@@ -120,29 +120,32 @@ const StudentDashboard = () => {
                                 <span className="material-symbols-rounded text-5xl mb-2">event_busy</span>
                                 <p>No tests assigned to your class yet.</p>
                             </div>
-                        ) : tests.map(test => (
-                            <motion.div
-                                key={test.id}
-                                whileHover={{ scale: 1.02 }}
-                                className="card-premium p-5 flex flex-col justify-between"
-                            >
-                                <div>
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center">
-                                            <span className="material-symbols-rounded">quiz</span>
+                        ) : tests.map(test => {
+                            if (!test) return null;
+                            return (
+                                <motion.div
+                                    key={test.id}
+                                    whileHover={{ scale: 1.02 }}
+                                    className="card-premium p-5 flex flex-col justify-between"
+                                >
+                                    <div>
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center">
+                                                <span className="material-symbols-rounded">quiz</span>
+                                            </div>
+                                            <span className="px-2 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold uppercase">
+                                                {test.duration_minutes} Mins
+                                            </span>
                                         </div>
-                                        <span className="px-2 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold uppercase">
-                                            {test.duration_minutes} Mins
-                                        </span>
+                                        <h3 className="font-bold text-slate-800 mb-1">{test.title}</h3>
+                                        <p className="text-xs text-slate-500 line-clamp-2 mb-4">{test.description || 'No description provided.'}</p>
                                     </div>
-                                    <h3 className="font-bold text-slate-800 mb-1">{test.title}</h3>
-                                    <p className="text-xs text-slate-500 line-clamp-2 mb-4">{test.description || 'No description provided.'}</p>
-                                </div>
-                                <Link to={`/student/test/${test.id}`} className="btn-primary-gradient w-full py-2 text-sm">
-                                    Start Attempt
-                                </Link>
-                            </motion.div>
-                        ))}
+                                    <Link to={`/student/test/${test.id}`} className="btn-primary-gradient w-full py-2 text-sm">
+                                        Start Attempt
+                                    </Link>
+                                </motion.div>
+                            );
+                        })}
                     </div>
                 </div>
 
