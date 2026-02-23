@@ -72,7 +72,8 @@ const TakeTest = () => {
     const autoSubmit = () => submitTest(true);
 
     const handleSelect = (option) => {
-        const qId = questions[currentQ].id;
+        const qId = questions[currentQ]?.id;
+        if (!qId) return;
         setAnswers(prev => ({ ...prev, [qId]: option }));
     };
 
@@ -136,7 +137,17 @@ const TakeTest = () => {
     );
 
     const currentQuestion = questions[currentQ];
-    const selectedOption = answers[currentQuestion.id];
+    const selectedOption = currentQuestion ? answers[currentQuestion.id] : null;
+
+    if (!currentQuestion) return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+            <div className="text-center">
+                <span className="material-symbols-rounded text-6xl text-slate-300 mb-4">error</span>
+                <p className="text-xl font-bold text-slate-800">Question not found</p>
+                <button onClick={() => navigate('/dashboard')} className="mt-4 text-primary-600 font-bold">Back to Dashboard</button>
+            </div>
+        </div>
+    );
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col fixed inset-0 z-[60]">
@@ -190,7 +201,7 @@ const TakeTest = () => {
 
                         <div className="space-y-8">
                             <h1 className="text-2xl font-bold text-slate-800 leading-relaxed">
-                                {currentQuestion.text}
+                                {currentQuestion?.text}
                             </h1>
 
                             <div className="grid grid-cols-1 gap-4">
@@ -200,19 +211,19 @@ const TakeTest = () => {
                                         whileTap={{ scale: 0.98 }}
                                         onClick={() => handleSelect(opt)}
                                         className={`group flex items-center gap-4 p-5 rounded-3xl border-2 text-left transition-all ${selectedOption === opt
-                                                ? 'bg-primary-50 border-primary-600 ring-4 ring-primary-500/10'
-                                                : 'bg-white border-slate-100 hover:border-slate-300 hover:bg-slate-50'
+                                            ? 'bg-primary-50 border-primary-600 ring-4 ring-primary-500/10'
+                                            : 'bg-white border-slate-100 hover:border-slate-300 hover:bg-slate-50'
                                             }`}
                                     >
                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold transition-colors ${selectedOption === opt
-                                                ? 'bg-primary-600 text-white'
-                                                : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
+                                            ? 'bg-primary-600 text-white'
+                                            : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
                                             }`}>
                                             {opt}
                                         </div>
                                         <span className={`text-lg font-medium transition-colors ${selectedOption === opt ? 'text-primary-900' : 'text-slate-700'
                                             }`}>
-                                            {currentQuestion[`option_${opt.toLowerCase()}`]}
+                                            {currentQuestion?.[`option_${opt.toLowerCase()}`]}
                                         </span>
                                         {selectedOption === opt && (
                                             <span className="material-symbols-rounded ml-auto text-primary-600">check_circle</span>
