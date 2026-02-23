@@ -190,7 +190,7 @@ Question.belongsTo(Test, { foreignKey: 'test_id' });
 User.hasMany(Attempt, { foreignKey: 'user_id' });
 Attempt.belongsTo(User, { foreignKey: 'user_id' });
 
-Test.hasMany(Attempt, { foreignKey: 'test_id' });
+Test.hasMany(Attempt, { foreignKey: 'test_id', onDelete: 'CASCADE' });
 Attempt.belongsTo(Test, { foreignKey: 'test_id' });
 
 // QuestionTime Relationships
@@ -210,11 +210,12 @@ QuestionTime.belongsTo(Test, { foreignKey: 'test_id' });
 User.hasMany(Mistake, { foreignKey: 'user_id' });
 Mistake.belongsTo(User, { foreignKey: 'user_id' });
 
-Test.hasMany(Mistake, { foreignKey: 'test_id' });
+Test.hasMany(Mistake, { foreignKey: 'test_id', onDelete: 'CASCADE' });
 Mistake.belongsTo(Test, { foreignKey: 'test_id' });
 
-Question.hasMany(Mistake, { foreignKey: 'question_id' });
+Question.hasMany(Mistake, { foreignKey: 'question_id', onDelete: 'CASCADE' });
 Mistake.belongsTo(Question, { foreignKey: 'question_id' });
+
 
 // --- Initialization ---
 
