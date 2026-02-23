@@ -59,9 +59,9 @@ const MistakeAnalytics = () => {
     const columns = [
         {
             header: 'Question', key: 'Question', render: (row) => (
-                 <div className="flex flex-col max-w-md">
-                    <span className="font-bold text-slate-800 line-clamp-1">{row.Question.text}</span>
-                    <span className="text-xs text-slate-400">Test: {row.Test.title}</span>
+                <div className="flex flex-col max-w-md">
+                    <span className="font-bold text-slate-800 line-clamp-1">{row.Question?.text || 'Deleted Question'}</span>
+                    <span className="text-xs text-slate-400">Test: {row.Test?.title || 'Unknown Test'}</span>
                 </div>
             )
         },
