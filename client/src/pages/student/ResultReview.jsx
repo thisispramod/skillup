@@ -196,6 +196,7 @@ const ResultReview = () => {
 
                 <div className="flex flex-col gap-6">
                     {questions.map((q, idx) => {
+                        if (!q) return null;
                         const userAns = userAnswers[q.id];
                         const isCorrect = userAns === q.correct_option;
                         const isUnattempted = !userAns;
@@ -234,7 +235,7 @@ const ResultReview = () => {
                                                 Time Spent: {formatTime(timeSpent)}
                                             </span>
                                         </div>
-                                        <h3 className="text-xl font-bold text-slate-800 leading-relaxed mb-8">{q.text}</h3>
+                                         <h3 className="text-xl font-bold text-slate-800 leading-relaxed mb-8">{q.text || 'Deleted Question'}</h3>
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             {['A', 'B', 'C', 'D'].map(opt => {
@@ -258,7 +259,7 @@ const ResultReview = () => {
                                                         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm shrink-0 shadow-sm ${circleStyles}`}>
                                                             {isThisCorrect ? <span className="material-symbols-rounded">check</span> : (isThisUserAns && !isCorrect ? <span className="material-symbols-rounded">close</span> : opt)}
                                                         </div>
-                                                        <span className="font-semibold text-sm leading-tight">{optText}</span>
+                                                        <span className="font-semibold text-sm leading-tight">{optText || 'N/A'}</span>
                                                     </div>
                                                 );
                                             })}
