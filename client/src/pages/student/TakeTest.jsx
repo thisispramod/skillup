@@ -15,6 +15,10 @@ const TakeTest = () => {
         const saved = localStorage.getItem(`test_answers_${id}`);
         return saved ? JSON.parse(saved) : {};
     });
+    const [markedForReview, setMarkedForReview] = useState(() => {
+        const saved = localStorage.getItem(`test_marked_${id}`);
+        return saved ? JSON.parse(saved) : {};
+    });
     const [timeLeft, setTimeLeft] = useState(0);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -69,12 +73,25 @@ const TakeTest = () => {
         }
     }, [answers, id]);
 
+    useEffect(() => {
+        localStorage.setItem(`test_marked_${id}`, JSON.stringify(markedForReview));
+    }, [markedForReview, id]);
+
     const autoSubmit = () => submitTest(true);
 
     const handleSelect = (option) => {
         const qId = questions[currentQ]?.id;
         if (!qId) return;
         setAnswers(prev => ({ ...prev, [qId]: option }));
+    };
+
+    const handleMarkForReview = () => {
+        const qId = currentQuestion?.id;
+        if (!qId) return;
+        setMarkedForReview(prev => ({
+            ...prev,
+            [qId]: !prev[qId]
+        }));
     };
 
     const submitTest = async (isAuto = false) => {
@@ -105,6 +122,7 @@ const TakeTest = () => {
 
             localStorage.removeItem(`test_answers_${id}`);
             localStorage.removeItem(`test_timer_${id}`);
+            localStorage.removeItem(`test_marked_${id}`);
 
             await Swal.fire({
                 icon: 'success',
@@ -247,14 +265,19 @@ const TakeTest = () => {
                             <button
                                 key={q.id}
                                 onClick={() => setCurrentQ(idx)}
-                                className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${currentQ === idx
-                                        ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30 ring-2 ring-primary-500 ring-offset-2'
+                                className={`w-10 h-10 rounded-xl text-xs font-bold transition-all relative ${currentQ === idx
+                                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30 ring-2 ring-primary-500 ring-offset-2'
+                                    : markedForReview[q.id]
+                                        ? 'bg-amber-100 text-amber-700 border border-amber-300'
                                         : answers[q.id]
                                             ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                                             : 'bg-slate-50 text-slate-400 border border-slate-100 hover:border-slate-300'
                                     }`}
                             >
                                 {idx + 1}
+                                {markedForReview[q.id] && (
+                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-white"></div>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -266,6 +289,9 @@ const TakeTest = () => {
                         </div>
                         <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
                             <div className="w-3 h-3 rounded-full bg-emerald-400"></div> Answered
+                        </div>
+                        <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
+                            <div className="w-3 h-3 rounded-full bg-amber-400"></div> Marked Review
                         </div>
                         <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
                             <div className="w-3 h-3 rounded-full bg-slate-200"></div> Not Answered
@@ -290,11 +316,16 @@ const TakeTest = () => {
                         {currentQ + 1} / {questions.length}
                     </span>
                     <button
-                        onClick={() => {/* Mark for review? */ }}
-                        className="p-3 rounded-2xl text-amber-600 hover:bg-amber-50"
+                        onClick={handleMarkForReview}
+                        className={`p-3 rounded-2xl transition-all ${markedForReview[currentQuestion?.id]
+                            ? 'bg-amber-100 text-amber-600 ring-2 ring-amber-200'
+                            : 'text-slate-400 hover:bg-slate-100'
+                            }`}
                         title="Mark for Review"
                     >
-                        <span className="material-symbols-rounded">bookmark</span>
+                        <span className="material-symbols-rounded">
+                            {markedForReview[currentQuestion?.id] ? 'bookmark_added' : 'bookmark'}
+                        </span>
                     </button>
                 </div>
 
