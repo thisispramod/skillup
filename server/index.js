@@ -55,6 +55,26 @@ const isAdmin = (req, res, next) => {
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Admin access required' });
     next();
 };
+// --- UTILS ---
+const shuffleArray = (array, seed) => {
+    let currentIndex = array.length, randomIndex;
+    let seedValue = seed;
+
+    // Simple pseudo-random using seed
+    const random = () => {
+        const x = Math.sin(seedValue++) * 10000;
+        return x - Math.floor(x);
+    };
+
+    while (currentIndex !== 0) {
+        randomIndex = Math.floor(random() * currentIndex);
+        currentIndex--;
+        [array[currentIndex], array[randomIndex]] = [
+            array[randomIndex], array[currentIndex]];
+    }
+    return array;
+};
+ 
 
 // --- AUTH ROUTES ---
 
@@ -506,7 +526,12 @@ app.get('/api/student/test/:id/questions', authenticateToken, async (req, res) =
         // Check timing logic here if needed (e.g., is it too early/late?)
 
         if (!test) return res.status(404).json({ message: 'Test not found' });
-        res.json(test);
+        const testData = test.toJSON();
+        if (testData.Questions && testData.Questions.length > 0) {
+            const seed = req.user.id + parseInt(req.params.id);
+            testData.Questions = shuffleArray(testData.Questions, seed);
+        } 
+        res.json(testData);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
