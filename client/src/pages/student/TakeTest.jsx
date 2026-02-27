@@ -14,7 +14,15 @@ const TakeTest = () => {
     const [answers, setAnswers] = useState(() => {
         const saved = localStorage.getItem(`test_answers_${id}`);
         return saved ? JSON.parse(saved) : {};
+    }); 
+    const [timeSpent, setTimeSpent] = useState(() => {
+        const saved = localStorage.getItem(`test_timeSpent_${id}`);
+        return saved ? JSON.parse(saved) : {};
     });
+    const timeSpentRef = useRef(timeSpent);
+    useEffect(() => {
+        timeSpentRef.current = timeSpent;
+    }, [timeSpent]); 
     const [markedForReview, setMarkedForReview] = useState(() => {
         const saved = localStorage.getItem(`test_marked_${id}`);
         return saved ? JSON.parse(saved) : {};
