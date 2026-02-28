@@ -216,7 +216,7 @@ const ResultReview = () => {
                         return (
                             <div key={q.id} className="card-premium p-6 lg:p-10 relative overflow-hidden group">
                                 {aiAnalysis && (
-                                    <div className={`absolute top-0 left-0 px-6 py-1 bg-${aiAnalysis.color}-600 text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-br-2xl shadow-lg`}>
+                                    <div className={`absolute top-0 left-0 px-6 py-1 bg-${aiAnalysis.color}-500 text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-br-2xl shadow-lg`}>
                                         {aiAnalysis.label}
                                     </div>
                                 )}
