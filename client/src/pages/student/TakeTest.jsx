@@ -22,7 +22,15 @@ const TakeTest = () => {
     const timeSpentRef = useRef(timeSpent);
     useEffect(() => {
         timeSpentRef.current = timeSpent;
-    }, [timeSpent]); 
+    }, [timeSpent]);
+    const currentQRef = useRef(currentQ);
+    useEffect(() => {
+        currentQRef.current = currentQ;
+    }, [currentQ]);
+    const questionsRef = useRef(questions);
+    useEffect(() => {
+        questionsRef.current = questions;
+    }, [questions]);
     const [markedForReview, setMarkedForReview] = useState(() => {
         const saved = localStorage.getItem(`test_marked_${id}`);
         return saved ? JSON.parse(saved) : {};
@@ -69,6 +77,14 @@ const TakeTest = () => {
                         return 0;
                     }
                     return newTime;
+                });
+                setTimeSpent(prev => {
+                    const q = questionsRef.current[currentQRef.current];
+                    if (!q) return prev;
+                    const qId = q.id;
+                    const newTimeSpent = { ...prev, [qId]: (prev[qId] || 0) + 1 };
+                    localStorage.setItem(`test_timeSpent_${id}`, JSON.stringify(newTimeSpent));
+                    return newTimeSpent;
                 });
             }, 1000);
             return () => clearInterval(timerRef.current);
@@ -125,12 +141,13 @@ const TakeTest = () => {
             const res = await api.post('/student/submit', {
                 test_id: id,
                 answers,
-                timeSpentPerQuestion: {} // Simplified for now
+                timeSpentPerQuestion: timeSpentRef.current
             });
 
             localStorage.removeItem(`test_answers_${id}`);
             localStorage.removeItem(`test_timer_${id}`);
             localStorage.removeItem(`test_marked_${id}`);
+            localStorage.removeItem(`test_timeSpent_${id}`);
 
             await Swal.fire({
                 icon: 'success',
