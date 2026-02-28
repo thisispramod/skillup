@@ -54,27 +54,24 @@ const authenticateToken = (req, res, next) => {
 const isAdmin = (req, res, next) => {
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Admin access required' });
     next();
-};
+}; 
+ 
 // --- UTILS ---
-const shuffleArray = (array, seed) => {
+const shuffleArray = (array) => {
     let currentIndex = array.length, randomIndex;
-    let seedValue = seed;
 
-    // Simple pseudo-random using seed
-    const random = () => {
-        const x = Math.sin(seedValue++) * 10000;
-        return x - Math.floor(x);
-    };
-
+    // While there remain elements to shuffle...
     while (currentIndex !== 0) {
-        randomIndex = Math.floor(random() * currentIndex);
+        // Pick a remaining element...
+        randomIndex = Math.floor(Math.random() * currentIndex);
         currentIndex--;
+
+        // And swap it with the current element.
         [array[currentIndex], array[randomIndex]] = [
             array[randomIndex], array[currentIndex]];
     }
     return array;
 };
- 
 
 // --- AUTH ROUTES ---
 
