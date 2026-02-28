@@ -526,7 +526,7 @@ app.get('/api/student/test/:id/questions', authenticateToken, async (req, res) =
         const testData = test.toJSON();
         if (testData.Questions && testData.Questions.length > 0) {
             const seed = req.user.id + parseInt(req.params.id);
-            testData.Questions = shuffleArray(testData.Questions, seed);
+            testData.Questions = shuffleArray(testData.Questions);
         } 
         res.json(testData);
     } catch (err) {
