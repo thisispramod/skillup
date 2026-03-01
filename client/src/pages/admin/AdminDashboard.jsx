@@ -78,6 +78,8 @@ const AdminDashboard = () => {
                 '<div class="flex flex-col gap-4 text-left">' +
                 '<div><label class="text-sm font-semibold text-slate-600 ml-1">Test Title</label>' +
                 '<input id="swal-input1" class="w-full mt-1 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary-500/20 outline-none border-slate-200" placeholder="e.g. Mathematics Midterm"></div>' +
+                '<div><label class="text-sm font-semibold text-slate-600 ml-1">Description</label>' +
+                '<input id="swal-input3" class="w-full mt-1 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary-500/20 outline-none border-slate-200" placeholder="e.g.Any Description"></div>' +
                 '<div><label class="text-sm font-semibold text-slate-600 ml-1">Duration (minutes)</label>' +
                 '<input id="swal-input2" type="number" class="w-full mt-1 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary-500/20 outline-none border-slate-200" value="60"></div>' +
                 '</div>',
@@ -91,11 +93,12 @@ const AdminDashboard = () => {
             preConfirm: () => {
                 const title = document.getElementById('swal-input1').value;
                 const duration = document.getElementById('swal-input2').value;
+                const description = document.getElementById('swal-input3').value;
                 if (!title) {
                     Swal.showValidationMessage('Title is required');
                     return false;
                 }
-                return { title, duration };
+                return { title, duration, description };
             }
         });
 
@@ -104,7 +107,7 @@ const AdminDashboard = () => {
                 await api.post('/tests', {
                     title: formValues.title,
                     duration_minutes: parseInt(formValues.duration),
-                    description: 'New test created from dashboard'
+                    description: formValues.description
                 });
                 Swal.fire({
                     icon: 'success',
