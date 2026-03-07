@@ -157,12 +157,12 @@ const Login = () => {
                         </p>
                     </div>
 
-                    <div className="mt-8 p-4 bg-slate-100 rounded-2xl border border-slate-200">
+                    {/* <div className="mt-8 p-4 bg-slate-100 rounded-2xl border border-slate-200">
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 text-center">Demo Credentials</p>
                         <div className="flex justify-between text-xs text-slate-600 px-2">
                             <span>Admin: admin@test.com / admin123</span>
                         </div>
-                    </div>
+                    </div> */}
                 </motion.div>
             </div>
         </div>
