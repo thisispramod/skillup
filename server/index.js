@@ -1,7 +1,7 @@
 if (!process.env.RENDER) {
     require('dotenv').config();
 }
-const express = require('express');  
+const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -18,25 +18,25 @@ const app = express();
 const PORT = process.env.PORT || 5005;
 const SECRET_KEY = process.env.JWT_SECRET || 'super_secret_jwt_key_should_be_in_env'; // Fallback for dev only
 const allowedOrigins = [
-  "https://thisispramod-etests-app.vercel.app",
-  "https://tuts-etests.vercel.app",
-  "http://localhost:5173",
-  "http://52.66.205.65"
+    "https://thisispramod-etests-app.vercel.app",
+    "https://tuts-etests.vercel.app",
+    "http://localhost:5174",
+    "http://52.66.205.65"
 ];
 
 app.use(express.json());
 
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      return callback(new Error("CORS not allowed"), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            return callback(new Error("CORS not allowed"), false);
+        }
+        return callback(null, true);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
 }));
 // Middleware to verify Token
 const authenticateToken = (req, res, next) => {
@@ -54,8 +54,8 @@ const authenticateToken = (req, res, next) => {
 const isAdmin = (req, res, next) => {
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Admin access required' });
     next();
-}; 
- 
+};
+
 // --- UTILS ---
 const shuffleArray = (array) => {
     let currentIndex = array.length, randomIndex;
@@ -476,6 +476,44 @@ app.get('/api/student/me', authenticateToken, async (req, res) => {
     }
 });
 
+// Get Overall Rank
+app.get('/api/student/rank', authenticateToken, async (req, res) => {
+    try {
+        const attempts = await Attempt.findAll({
+            attributes: [
+                'user_id',
+                [sequelize.fn('SUM', sequelize.col('score')), 'totalScore'],
+                [sequelize.fn('SUM', sequelize.col('correct_answers')), 'totalCorrect'],
+                [sequelize.fn('SUM', sequelize.col('total_questions')), 'totalQs'],
+                [sequelize.fn('SUM', sequelize.col('total_time')), 'totalTime']
+            ],
+            group: ['user_id'],
+            raw: true
+        });
+
+        attempts.sort((a, b) => {
+            // 1. Total Score (Highest first)
+            if (parseFloat(b.totalScore) !== parseFloat(a.totalScore)) {
+                return parseFloat(b.totalScore) - parseFloat(a.totalScore);
+            }
+            // 2. Accuracy (Highest first)
+            const accA = a.totalQs > 0 ? a.totalCorrect / a.totalQs : 0;
+            const accB = b.totalQs > 0 ? b.totalCorrect / b.totalQs : 0;
+            if (accB !== accA) return accB - accA;
+
+            // 3. Time Taken (Lower is better)
+            return parseFloat(a.totalTime) - parseFloat(b.totalTime);
+        });
+
+        const index = attempts.findIndex(att => att.user_id === req.user.id);
+        const rank = index !== -1 ? `#${index + 1}` : '--';
+
+        res.json({ rank });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get Available Tests (Filtered by Student's Class)
 app.get('/api/student/tests', authenticateToken, async (req, res) => {
     try {
@@ -527,7 +565,7 @@ app.get('/api/student/test/:id/questions', authenticateToken, async (req, res) =
         if (testData.Questions && testData.Questions.length > 0) {
             const seed = req.user.id + parseInt(req.params.id);
             testData.Questions = shuffleArray(testData.Questions);
-        } 
+        }
         res.json(testData);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -605,13 +643,14 @@ app.post('/api/student/submit', authenticateToken, async (req, res) => {
                 const userAns = answers[q.id];
                 const isIncorrect = userAns && userAns !== q.correct_option;
                 const avgTime = avgTimeMap[q.id] || 0;
-                const isSlow = avgTime > 0 && timeSpent > avgTime; // Only if avg exists
+                const isSlow = avgTime > 0 && timeSpent > avgTime;
 
-                if (isIncorrect || isSlow) {
+                // Only treat as a mistake if it's actually incorrect
+                if (isIncorrect) {
                     const [mistake, created] = await Mistake.findOrCreate({
                         where: { user_id: req.user.id, question_id: q.id, test_id },
                         defaults: {
-                            is_incorrect: isIncorrect,
+                            is_incorrect: true,
                             is_slow: isSlow,
                             status: 'active',
                             retry_count: 0,
@@ -620,14 +659,10 @@ app.post('/api/student/submit', authenticateToken, async (req, res) => {
                     });
 
                     if (!created) {
-                        if (isIncorrect) mistake.is_incorrect = true;
-                        if (isSlow) mistake.is_slow = true;
-
-                        // Reset progress if incorrect again
-                        if (isIncorrect) {
-                            mistake.consecutive_correct_retries = 0;
-                            mistake.status = 'active';
-                        }
+                        mistake.is_incorrect = true;
+                        mistake.is_slow = isSlow;
+                        mistake.consecutive_correct_retries = 0;
+                        mistake.status = 'active';
                         await mistake.save();
                     }
                 }
@@ -844,7 +879,10 @@ app.get('/api/rankings/:testId', authenticateToken, async (req, res) => {
 app.get('/api/student/mistakes', authenticateToken, async (req, res) => {
     try {
         const { test_id, status } = req.query;
-        const whereClause = { user_id: req.user.id };
+        const whereClause = {
+            user_id: req.user.id,
+            is_incorrect: true // Only show actual wrong answers
+        };
         if (test_id) whereClause.test_id = test_id;
         if (status) whereClause.status = status;
 
@@ -1014,7 +1052,7 @@ app.get('/api/admin/mistakes/student/:studentId', authenticateToken, isAdmin, as
 });
 
 initDB().then(() => {
-    app.listen(PORT,'0.0.0.0', () => {
+    app.listen(PORT, '0.0.0.0', () => {
         console.log(`Server is running on port ${PORT}`);
     });
 });

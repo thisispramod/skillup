@@ -13,7 +13,8 @@ const StudentDashboard = () => {
         totalAttempts: 0,
         averageScore: 0,
         rank: '--',
-        mistakesCount: 0
+        mistakesCount: 0,
+        accuracy: 0
     });
 
     useEffect(() => {
@@ -23,24 +24,43 @@ const StudentDashboard = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [testsRes, resultsRes, statsRes] = await Promise.all([
+            const [testsRes, resultsRes, statsRes, rankRes] = await Promise.all([
                 api.get('/student/tests'),
                 api.get('/student/results'),
-                api.get('/student/me') // Assuming this gives some summary
+                api.get('/student/me'),
+                api.get('/student/rank')
             ]);
 
             setTests(testsRes.data);
             setResults(resultsRes.data);
 
             // Calculate some local stats if not provided by API
-            const totalScore = resultsRes.data.reduce((acc, curr) => acc + curr.score, 0);
-            const avg = resultsRes.data.length > 0 ? (totalScore / resultsRes.data.length).toFixed(1) : 0;
+            const totalScore = resultsRes.data.reduce((acc, curr) => acc + curr.score, 0); 
+            let avg;
+            if (resultsRes.data.length > 0) {
+                avg = (totalScore / resultsRes.data.length).toFixed(1);
+            } else {
+                avg = 0;
+            }
+
+            // Calculate total mistakes from tests
+            const mistakes = resultsRes.data.reduce((acc, curr) => {
+                const totalQs = curr.total_questions || 0;
+                const correct = curr.correct_answers || 0;
+                return acc + (totalQs - correct);
+            }, 0);
+
+            // Calculate total accuracy from all attempts
+            const totalQsCount = resultsRes.data.reduce((acc, curr) => acc + (curr.total_questions || 0), 0);
+            const totalCorrectCount = resultsRes.data.reduce((acc, curr) => acc + (curr.correct_answers || 0), 0);
+            const overallAccuracy = totalQsCount > 0 ? Math.round((totalCorrectCount / totalQsCount) * 100) : 0;
 
             setUserStats({
                 totalAttempts: resultsRes.data.length,
                 averageScore: avg,
-                rank: '#12', // Placeholder
-                mistakesCount: 8 // Placeholder
+                rank: rankRes.data.rank,
+                mistakesCount: mistakes,
+                accuracy: overallAccuracy
             });
         } catch (err) {
             console.error(err);
@@ -169,10 +189,10 @@ const StudentDashboard = () => {
                         <div className="space-y-4">
                             <div className="flex items-center justify-between text-sm">
                                 <span className="text-slate-500">Accuracy</span>
-                                <span className="font-bold text-slate-800">84%</span>
+                                <span className="font-bold text-slate-800">{userStats.accuracy}%</span>
                             </div>
                             <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500 w-[84%]"></div>
+                                <div className="h-full bg-emerald-500" style={{ width: `${userStats.accuracy}%` }}></div>
                             </div>
                             <Link to="/student/reports" className="flex items-center gap-2 text-sm font-semibold text-primary-600 hover:text-primary-700 mt-4">
                                 Full Analysis Report

@@ -14,7 +14,7 @@ const TakeTest = () => {
     const [answers, setAnswers] = useState(() => {
         const saved = localStorage.getItem(`test_answers_${id}`);
         return saved ? JSON.parse(saved) : {};
-    }); 
+    });
     const [timeSpent, setTimeSpent] = useState(() => {
         const saved = localStorage.getItem(`test_timeSpent_${id}`);
         return saved ? JSON.parse(saved) : {};
@@ -38,6 +38,7 @@ const TakeTest = () => {
     const [timeLeft, setTimeLeft] = useState(0);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [showPalette, setShowPalette] = useState(false);
 
     const timerRef = useRef(null);
 
@@ -213,8 +214,15 @@ const TakeTest = () => {
                         {formatTime(timeLeft)}
                     </div>
                     <button
+                        onClick={() => setShowPalette(true)}
+                        className="lg:hidden w-11 h-11 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-all"
+                        title="Question Navigator"
+                    >
+                        <span className="material-symbols-rounded">grid_view</span>
+                    </button>
+                    <button
                         onClick={() => submitTest(false)}
-                        className="btn-premium px-8 py-2.5 bg-slate-900 text-white hover:bg-slate-800"
+                        className="hidden sm:block btn-premium px-8 py-2.5 bg-slate-900 text-white hover:bg-slate-800"
                     >
                         Finish Exam
                     </button>
@@ -372,6 +380,89 @@ const TakeTest = () => {
                     </button>
                 )}
             </div>
+
+            {/* Mobile Palette Overlay */}
+            <AnimatePresence>
+                {showPalette && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowPalette(false)}
+                            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[70] lg:hidden"
+                        />
+                        <motion.div
+                            initial={{ x: '100%' }}
+                            animate={{ x: 0 }}
+                            exit={{ x: '100%' }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                            className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-white z-[80] shadow-2xl p-6 overflow-y-auto lg:hidden"
+                        >
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
+                                    <span className="material-symbols-rounded text-primary-500">grid_view</span>
+                                    Exam Navigator
+                                </h3>
+                                <button
+                                    onClick={() => setShowPalette(false)}
+                                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                                >
+                                    <span className="material-symbols-rounded">close</span>
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-5 gap-3">
+                                {questions.map((q, idx) => (
+                                    <button
+                                        key={q.id}
+                                        onClick={() => {
+                                            setCurrentQ(idx);
+                                            setShowPalette(false);
+                                        }}
+                                        className={`w-12 h-12 rounded-2xl text-sm font-bold transition-all relative ${currentQ === idx
+                                            ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30'
+                                            : markedForReview[q.id]
+                                                ? 'bg-amber-100 text-amber-700 border-2 border-amber-300'
+                                                : answers[q.id]
+                                                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                                    : 'bg-slate-50 text-slate-400 border border-slate-100'
+                                            }`}
+                                    >
+                                        {idx + 1}
+                                        {markedForReview[q.id] && (
+                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-white"></div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="mt-12 space-y-4 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Legend</p>
+                                <div className="flex items-center gap-3 text-sm font-semibold text-slate-600">
+                                    <div className="w-4 h-4 rounded-lg bg-primary-600"></div> Current
+                                </div>
+                                <div className="flex items-center gap-3 text-sm font-semibold text-slate-600">
+                                    <div className="w-4 h-4 rounded-lg bg-emerald-400"></div> Answered
+                                </div>
+                                <div className="flex items-center gap-3 text-sm font-semibold text-slate-600">
+                                    <div className="w-4 h-4 rounded-lg bg-amber-400"></div> Marked Review
+                                </div>
+                                <div className="flex items-center gap-3 text-sm font-semibold text-slate-600">
+                                    <div className="w-4 h-4 rounded-lg bg-slate-200"></div> Not Answered
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => submitTest(false)}
+                                className="w-full mt-8 btn-premium py-4 bg-slate-900 text-white hover:bg-slate-800 shadow-xl"
+                            >
+                                Finish Exam
+                            </button>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
