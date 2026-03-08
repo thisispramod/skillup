@@ -44,8 +44,8 @@ jobs:
         password: ${{ secrets.SSH_PASSWORD }}
         port: ${{ secrets.SSH_PORT }}
         script: |
-          sudo rm -rf /var/www/html/*
-          sudo mv -f /home/opc/skillup/client/dist/* /var/www/html/
+          sudo rm -rf /usr/share/nginx/html/*
+          sudo mv -f /home/opc/skillup/client/dist/* /usr/share/nginx/html
 
     - name: Copy backend code (server) files to server
       uses: appleboy/scp-action@v0.1.0
