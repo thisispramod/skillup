@@ -30,7 +30,7 @@ jobs:
         port: ${{ secrets.SSH_PORT }}
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_KEY }}
+        password: ${{ secrets.SSH_PASSWORD }}
         target: /home/opc/skillup/
         source: "client/dist"
         overwrite: true
@@ -41,7 +41,7 @@ jobs:
       with:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_KEY }}
+        password: ${{ secrets.SSH_PASSWORD }}
         port: ${{ secrets.SSH_PORT }}
         script: |
           sudo rm -rf /var/www/html/*
@@ -53,7 +53,7 @@ jobs:
         port: ${{ secrets.SSH_PORT }}
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_KEY }}
+        password: ${{ secrets.SSH_PASSWORD }}
         target: /home/opc/skillup/
         source: "server"
         overwrite: true
@@ -64,7 +64,7 @@ jobs:
       with:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_KEY }}
+        password: ${{ secrets.SSH_PASSWORD }}
         port: ${{ secrets.SSH_PORT }}
         script: |
           cd /home/opc/skillup/server
