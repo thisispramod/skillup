@@ -46,6 +46,8 @@ jobs:
         script: |
           sudo rm -rf /usr/share/nginx/html/*
           sudo mv -f /home/opc/skillup/client/dist/* /usr/share/nginx/html
+          sudo chown -R root:root /usr/share/nginx/html
+          sudo chcon -R -t httpd_sys_content_t /usr/share/nginx/html/
 
     - name: Copy backend code (server) files to server
       uses: appleboy/scp-action@v0.1.0
