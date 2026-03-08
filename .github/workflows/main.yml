@@ -31,7 +31,7 @@ jobs:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
-        target: /home/admin/skillup/
+        target: /home/opc/skillup/
         source: "client/dist"
         overwrite: true
         rm: false
@@ -45,7 +45,7 @@ jobs:
         port: ${{ secrets.SSH_PORT }}
         script: |
           sudo rm -rf /var/www/html/*
-          sudo mv -f /home/admin/skillup/client/dist/* /var/www/html/
+          sudo mv -f /home/opc/skillup/client/dist/* /var/www/html/
 
     - name: Copy backend code (server) files to server
       uses: appleboy/scp-action@v0.1.0
@@ -54,7 +54,7 @@ jobs:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
-        target: /home/admin/skillup/
+        target: /home/opc/skillup/
         source: "server"
         overwrite: true
         rm: false
@@ -67,7 +67,7 @@ jobs:
         key: ${{ secrets.SSH_KEY }}
         port: ${{ secrets.SSH_PORT }}
         script: |
-          cd /home/admin/skillup/server
+          cd /home/opc/skillup/server
           sudo systemctl stop nginx
           sudo systemctl stop mariadb
           npm install
