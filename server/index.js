@@ -24,6 +24,7 @@ const allowedOrigins = [
     "http://52.66.205.65",
     "http://92.4.67.31",
     "http://opc.dedyn.io",
+    "https://opc.dedyn.io",
 ];
 
 app.use(express.json());
