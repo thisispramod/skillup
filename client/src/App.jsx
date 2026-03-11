@@ -12,10 +12,18 @@ import ManageClasses from './pages/admin/ManageClasses';
 import ManageStudents from './pages/admin/ManageStudents';
 import AdminReports from './pages/admin/Reports';
 import MistakeAnalytics from './pages/admin/MistakeAnalytics';
+import ManageMockTests from './pages/admin/ManageMockTests';
+import ManageMockTestSections from './pages/admin/ManageMockTestSections';
+
 import TakeTest from './pages/student/TakeTest';
 import ResultReview from './pages/student/ResultReview';
 import StudentReports from './pages/student/StudentReports';
 import MistakeBook from './pages/student/MistakeBook';
+import StudentMockTests from './pages/student/StudentMockTests';
+import MockTestDetails from './pages/student/MockTestDetails';
+import TakeMockTest from './pages/student/TakeMockTest';
+import MockTestResult from './pages/student/MockTestResult';
+import StudentMockTestReports from './pages/student/StudentMockTestReports';
 
 const AppContent = () => {
   const { user, logout, loading } = useContext(AuthContext);
@@ -61,6 +69,8 @@ const AppContent = () => {
             <Route path="/admin/manage-tests" element={<ManageTests />} />
             <Route path="/admin/test/:id" element={<ManageTest />} />
             <Route path="/admin/test/:id/analytics" element={<TestAnalytics />} />
+            <Route path="/admin/manage-mock-tests" element={<ManageMockTests />} />
+            <Route path="/admin/mock-test/:id/sections" element={<ManageMockTestSections />} />
             <Route path="/admin/classes" element={<ManageClasses />} />
             <Route path="/admin/students" element={<ManageStudents />} />
             <Route path="/admin/reports" element={<AdminReports />} />
@@ -74,6 +84,11 @@ const AppContent = () => {
             <Route path="/student/dashboard" element={<Dashboard />} />
             <Route path="/student/test/:id" element={<TakeTest />} />
             <Route path="/student/result/:id" element={<ResultReview />} />
+            <Route path="/student/mock-tests" element={<StudentMockTests />} />
+            <Route path="/student/mock-test/:id" element={<MockTestDetails />} />
+            <Route path="/student/mock-test/:id/take" element={<TakeMockTest />} />
+            <Route path="/student/mock-test-result/:id" element={<MockTestResult />} />
+            <Route path="/student/mock-test-reports" element={<StudentMockTestReports />} />
             <Route path="/student/reports" element={<StudentReports />} />
             <Route path="/student/mistake-book" element={<MistakeBook />} />
           </>

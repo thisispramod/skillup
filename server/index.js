@@ -5,7 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, initDB } = require('./database');
+const { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, initDB } = require('./database');
 const { Op } = require('sequelize');
 const multer = require('multer');
 const xlsx = require('xlsx');
@@ -21,10 +21,7 @@ const allowedOrigins = [
     "https://thisispramod-etests-app.vercel.app",
     "https://tuts-etests.vercel.app",
     "http://localhost:5174",
-    "http://52.66.205.65",
-    "http://92.4.67.31",
-    "http://opc.dedyn.io",
-    "https://opc.dedyn.io",
+    "http://52.66.205.65"
 ];
 
 app.use(express.json());
@@ -461,6 +458,238 @@ app.get('/api/admin/reports', authenticateToken, isAdmin, async (req, res) => {
     }
 });
 
+// --- ADMIN MOCK TEST ROUTES ---
+
+app.post('/api/admin/mock-tests', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const test = await MockTest.create({ ...req.body, created_by: req.user.id });
+        res.status(201).json(test);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/admin/mock-tests', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const tests = await MockTest.findAll({
+            include: [{ model: MockTestSection }]
+        });
+        res.json(tests);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/admin/mock-tests/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const test = await MockTest.findByPk(req.params.id);
+        if (!test) return res.status(404).json({ message: 'Mock Test not found' });
+        await test.update(req.body);
+        res.json(test);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/admin/mock-tests/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await MockTest.destroy({ where: { id: req.params.id } });
+        res.json({ message: 'Mock Test deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/admin/mock-tests/:testId', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const test = await MockTest.findByPk(req.params.testId, {
+            include: [{
+                model: MockTestSection,
+                include: [MockTestQuestion]
+            }]
+        });
+        if (!test) return res.status(404).json({ message: 'Mock Test not found' });
+        res.json(test);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Mock Test Sections
+app.post('/api/admin/mock-tests/:testId/sections', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const section = await MockTestSection.create({ ...req.body, mock_test_id: req.params.testId });
+        res.status(201).json(section);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/admin/mock-test-sections/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const section = await MockTestSection.findByPk(req.params.id);
+        if (!section) return res.status(404).json({ message: 'Section not found' });
+        await section.update(req.body);
+        res.json(section);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/admin/mock-test-sections/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await MockTestSection.destroy({ where: { id: req.params.id } });
+        res.json({ message: 'Section deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Import Questions for Mock Test Section
+app.post('/api/admin/mock-test-sections/:sectionId/import', authenticateToken, isAdmin, upload.single('file'), async (req, res) => {
+    const filePath = req.file?.path;
+    if (!filePath) return res.status(400).json({ message: 'No file uploaded' });
+
+    try {
+        const sectionId = req.params.sectionId;
+        const section = await MockTestSection.findByPk(sectionId);
+        if (!section) return res.status(404).json({ message: 'Section not found' });
+
+        const workbook = xlsx.readFile(filePath);
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = xlsx.utils.sheet_to_json(sheet);
+
+        if (jsonData.length === 0) {
+            return res.status(400).json({ message: 'Empty sheet' });
+        }
+
+        const questionsToInsert = [];
+        jsonData.forEach((row) => {
+            const r = {};
+            Object.keys(row).forEach(k => r[k.toLowerCase().trim()] = row[k]);
+
+            if (!r.text || !r.option_a || !r.option_b || !r.option_c || !r.option_d || !r.correct_option) return;
+
+            questionsToInsert.push({
+                text: r.text,
+                image_url: r.image_url || null,
+                option_a: r.option_a, option_a_image: r.option_a_image || null,
+                option_b: r.option_b, option_b_image: r.option_b_image || null,
+                option_c: r.option_c, option_c_image: r.option_c_image || null,
+                option_d: r.option_d, option_d_image: r.option_d_image || null,
+                correct_option: r.correct_option.toString().toUpperCase().trim(),
+                explanation: r.explanation || null,
+                explanation_image: r.explanation_image || null,
+                section_id: sectionId,
+                mock_test_id: section.mock_test_id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            });
+        });
+
+        await MockTestQuestion.bulkCreate(questionsToInsert);
+        const count = await MockTestQuestion.count({ where: { section_id: sectionId } });
+        await section.update({ total_questions: count });
+
+        let totalQuestionsTest = await MockTestQuestion.count({ where: { mock_test_id: section.mock_test_id } });
+        await MockTest.update({ total_questions: totalQuestionsTest }, { where: { id: section.mock_test_id } });
+
+        res.json({ success: true, count: questionsToInsert.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+});
+
+// Download Mock Test Sample Template
+app.get('/api/admin/mock-test-sample-sheet', authenticateToken, isAdmin, (req, res) => {
+    try {
+        const wb = xlsx.utils.book_new();
+        const wsData = [
+            ['text', 'image_url', 'option_a', 'option_a_image', 'option_b', 'option_b_image', 'option_c', 'option_c_image', 'option_d', 'option_d_image', 'correct_option', 'explanation', 'explanation_image'],
+            ['What is the capital of France?', '', 'Berlin', '', 'Madrid', '', 'Paris', '', 'Rome', '', 'C', 'Paris is the capital.', ''],
+            ['Identify the shape', 'http://example.com/triangle.png', 'Square', '', 'Circle', '', 'Triangle', '', 'Rectangle', '', 'C', 'It has 3 sides.', '']
+        ];
+        const ws = xlsx.utils.aoa_to_sheet(wsData);
+        xlsx.utils.book_append_sheet(wb, ws, 'Template');
+
+        const tempFilePath = path.join(__dirname, 'uploads', 'mock_question_template.xlsx');
+        if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
+            fs.mkdirSync(path.join(__dirname, 'uploads'));
+        }
+        xlsx.writeFile(wb, tempFilePath);
+        res.download(tempFilePath, 'mock_test_question_template.xlsx');
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to generate template' });
+    }
+});
+
+// Add Single Mock Test Question Manually
+app.post('/api/admin/mock-test-sections/:sectionId/questions', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const sectionId = req.params.sectionId;
+        const section = await MockTestSection.findByPk(sectionId);
+        if (!section) return res.status(404).json({ message: 'Section not found' });
+
+        const question = await MockTestQuestion.create({
+            ...req.body,
+            section_id: sectionId,
+            mock_test_id: section.mock_test_id
+        });
+
+        // Update counts
+        const sectionCount = await MockTestQuestion.count({ where: { section_id: sectionId } });
+        await section.update({ total_questions: sectionCount });
+        
+        const testCount = await MockTestQuestion.count({ where: { mock_test_id: section.mock_test_id } });
+        await MockTest.update({ total_questions: testCount }, { where: { id: section.mock_test_id } });
+
+        res.status(201).json(question);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Edit Mock Test Question
+app.put('/api/admin/mock-test-questions/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const question = await MockTestQuestion.findByPk(req.params.id);
+        if (!question) return res.status(404).json({ message: 'Question not found' });
+        
+        await question.update(req.body);
+        res.json(question);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Delete Mock Test Question
+app.delete('/api/admin/mock-test-questions/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const question = await MockTestQuestion.findByPk(req.params.id);
+        if (!question) return res.status(404).json({ message: 'Question not found' });
+        
+        const sectionId = question.section_id;
+        const mockTestId = question.mock_test_id;
+        
+        await question.destroy();
+
+        // Update counts
+        const sectionCount = await MockTestQuestion.count({ where: { section_id: sectionId } });
+        await MockTestSection.update({ total_questions: sectionCount }, { where: { id: sectionId } });
+        
+        const testCount = await MockTestQuestion.count({ where: { mock_test_id: mockTestId } });
+        await MockTest.update({ total_questions: testCount }, { where: { id: mockTestId } });
+
+        res.json({ message: 'Question deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
 // --- STUDENT ROUTES ---
 
 // Get My Profile (with Class)
@@ -786,6 +1015,143 @@ app.get('/api/student/performance', authenticateToken, async (req, res) => {
                 totalScore
             }
         });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+// --- STUDENT MOCK TEST ROUTES ---
+
+// Get Available Mock Tests
+app.get('/api/student/mock-tests', authenticateToken, async (req, res) => {
+    try {
+        const tests = await MockTest.findAll({
+            attributes: ['id', 'title', 'description', 'duration_minutes', 'exam_type', 'total_marks', 'total_questions', 'positive_marks', 'negative_marks']
+        });
+        res.json(tests);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get Mock Test Info before starting
+app.get('/api/student/mock-tests/:id/info', authenticateToken, async (req, res) => {
+    try {
+        const test = await MockTest.findByPk(req.params.id, {
+            include: [{ model: MockTestSection }]
+        });
+        if (!test) return res.status(404).json({ message: 'Mock Test not found' });
+        res.json(test);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Start Mock Test (Questions without correct answers)
+app.get('/api/student/mock-tests/:id/start', authenticateToken, async (req, res) => {
+    try {
+        const test = await MockTest.findByPk(req.params.id, {
+            include: [{
+                model: MockTestSection,
+                include: [{
+                    model: MockTestQuestion,
+                    attributes: ['id', 'text', 'image_url', 'option_a', 'option_a_image', 'option_b', 'option_b_image', 'option_c', 'option_c_image', 'option_d', 'option_d_image', 'section_id']
+                }]
+            }]
+        });
+        if (!test) return res.status(404).json({ message: 'Mock Test not found' });
+        res.json(test);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Submit Mock Test
+app.post('/api/student/mock-tests/:id/submit', authenticateToken, async (req, res) => {
+    const { answers, totalTime } = req.body;
+    // answers format: { questionId: { ans: 'A', status: 'answered'|'markedReview' } }
+
+    try {
+        const testId = req.params.id;
+        const test = await MockTest.findByPk(testId);
+        if (!test) return res.status(404).json({ message: 'Mock Test not found' });
+
+        const questions = await MockTestQuestion.findAll({ where: { mock_test_id: testId } });
+
+        let score = 0;
+        let correct = 0;
+        let wrong = 0;
+        let skipped = 0;
+        let totalQs = questions.length;
+
+        questions.forEach(q => {
+            const userState = answers[q.id];
+            const userAns = userState?.ans;
+
+            if (!userAns) {
+                skipped++;
+            } else if (userAns === q.correct_option) {
+                correct++;
+                score += test.positive_marks;
+            } else {
+                wrong++;
+                score -= test.negative_marks;
+            }
+        });
+
+        score = parseFloat(score.toFixed(2));
+
+        const attempt = await MockTestAttempt.create({
+            user_id: req.user.id,
+            mock_test_id: test.id,
+            score,
+            total_questions: totalQs,
+            correct_answers: correct,
+            wrong_answers: wrong,
+            skipped_answers: skipped,
+            answers_json: JSON.stringify(answers),
+            total_time: totalTime || 0
+        });
+
+        res.json({ success: true, attempt_id: attempt.id });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get All Mock Test Results for Student
+app.get('/api/student/mock-test-results', authenticateToken, async (req, res) => {
+    try {
+        const attempts = await MockTestAttempt.findAll({
+            where: { user_id: req.user.id },
+            include: [{ model: MockTest, attributes: ['title', 'exam_type', 'total_marks', 'total_questions', 'positive_marks'] }],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(attempts);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/student/mock-test-results/:attemptId', authenticateToken, async (req, res) => {
+    try {
+        const attempt = await MockTestAttempt.findByPk(req.params.attemptId, {
+            include: [{
+                model: MockTest,
+                include: [{
+                    model: MockTestSection,
+                    include: [MockTestQuestion]
+                }]
+            }]
+        });
+
+        if (!attempt) return res.status(404).json({ message: 'Attempt not found' });
+        if (attempt.user_id !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+        res.json(attempt);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

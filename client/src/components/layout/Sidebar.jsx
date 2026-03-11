@@ -17,12 +17,15 @@ const Sidebar = ({ isOpen, toggleSidebar, role, onLogout }) => {
     const menuItems = role === 'admin' ? [
         { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
         { name: 'Manage Tests', path: '/admin/manage-tests', icon: 'quiz' },
+        { name: 'Mock Tests', path: '/admin/manage-mock-tests', icon: 'assignment' },
         { name: 'Manage Students', path: '/admin/students', icon: 'group' },
         { name: 'Manage Classes', path: '/admin/classes', icon: 'school' },
         { name: 'Reports', path: '/admin/reports', icon: 'analytics' },
         { name: 'Mistake Analytics', path: '/admin/mistake-analytics', icon: 'error' },
     ] : [
         { name: 'Dashboard', path: '/student/dashboard', icon: 'dashboard' },
+        { name: 'Mock Tests', path: '/student/mock-tests', icon: 'assignment' },
+        { name: 'Mock Test Reports', path: '/student/mock-test-reports', icon: 'history' },
         { name: 'Mistake Book', path: '/student/mistake-book', icon: 'menu_book' },
         { name: 'Reports', path: '/student/reports', icon: 'assessment' },
     ];

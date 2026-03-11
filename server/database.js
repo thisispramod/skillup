@@ -142,6 +142,56 @@ const Attempt = sequelize.define('Attempt', {
   total_time: { type: DataTypes.INTEGER, defaultValue: 0 } // Total time in seconds
 });
 
+// --- Mock Test Models ---
+const MockTest = sequelize.define('MockTest', {
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT },
+  duration_minutes: { type: DataTypes.INTEGER, allowNull: false },
+  exam_type: { type: DataTypes.STRING, defaultValue: 'SSC CGL' },
+  start_time: { type: DataTypes.DATE, allowNull: true },
+  end_time: { type: DataTypes.DATE, allowNull: true },
+  total_marks: { type: DataTypes.FLOAT },
+  total_questions: { type: DataTypes.INTEGER },
+  positive_marks: { type: DataTypes.FLOAT, defaultValue: 2 },
+  negative_marks: { type: DataTypes.FLOAT, defaultValue: 0.5 },
+  status: { type: DataTypes.ENUM('draft', 'published'), defaultValue: 'draft' }
+});
+
+const MockTestSection = sequelize.define('MockTestSection', {
+  name: { type: DataTypes.STRING, allowNull: false },
+  total_questions: { type: DataTypes.INTEGER, defaultValue: 0 },
+  marks_per_question: { type: DataTypes.FLOAT }, // override default if needed
+  negative_marks: { type: DataTypes.FLOAT },
+  order_index: { type: DataTypes.INTEGER, defaultValue: 0 }
+});
+
+const MockTestQuestion = sequelize.define('MockTestQuestion', {
+  text: { type: DataTypes.TEXT, allowNull: false },
+  image_url: { type: DataTypes.STRING, allowNull: true },
+  option_a: { type: DataTypes.STRING, allowNull: false },
+  option_a_image: { type: DataTypes.STRING, allowNull: true },
+  option_b: { type: DataTypes.STRING, allowNull: false },
+  option_b_image: { type: DataTypes.STRING, allowNull: true },
+  option_c: { type: DataTypes.STRING, allowNull: false },
+  option_c_image: { type: DataTypes.STRING, allowNull: true },
+  option_d: { type: DataTypes.STRING, allowNull: false },
+  option_d_image: { type: DataTypes.STRING, allowNull: true },
+  correct_option: { type: DataTypes.ENUM('A', 'B', 'C', 'D'), allowNull: false },
+  explanation: { type: DataTypes.TEXT, allowNull: true },
+  explanation_image: { type: DataTypes.STRING, allowNull: true }
+});
+
+const MockTestAttempt = sequelize.define('MockTestAttempt', {
+  score: { type: DataTypes.FLOAT, defaultValue: 0 },
+  total_questions: { type: DataTypes.INTEGER, defaultValue: 0 },
+  correct_answers: { type: DataTypes.INTEGER, defaultValue: 0 },
+  wrong_answers: { type: DataTypes.INTEGER, defaultValue: 0 },
+  skipped_answers: { type: DataTypes.INTEGER, defaultValue: 0 },
+  total_time: { type: DataTypes.INTEGER, defaultValue: 0 }, // seconds
+  completed_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  answers_json: { type: DataTypes.TEXT }, // JSON: { qId: { ans: 'A', time: 10, markedReview: false } }
+});
+
 const QuestionTime = sequelize.define('QuestionTime', {
   time_spent: { type: DataTypes.INTEGER, defaultValue: 0 }, // in seconds
 });
@@ -215,6 +265,25 @@ Mistake.belongsTo(Test, { foreignKey: 'test_id' });
 
 Question.hasMany(Mistake, { foreignKey: 'question_id', onDelete: 'CASCADE' });
 Mistake.belongsTo(Question, { foreignKey: 'question_id' });
+
+// Mock Test Relationships
+User.hasMany(MockTest, { foreignKey: 'created_by' });
+MockTest.belongsTo(User, { foreignKey: 'created_by' });
+
+MockTest.hasMany(MockTestSection, { foreignKey: 'mock_test_id', onDelete: 'CASCADE' });
+MockTestSection.belongsTo(MockTest, { foreignKey: 'mock_test_id' });
+
+MockTestSection.hasMany(MockTestQuestion, { foreignKey: 'section_id', onDelete: 'CASCADE' });
+MockTestQuestion.belongsTo(MockTestSection, { foreignKey: 'section_id' });
+
+MockTest.hasMany(MockTestQuestion, { foreignKey: 'mock_test_id', onDelete: 'CASCADE' });
+MockTestQuestion.belongsTo(MockTest, { foreignKey: 'mock_test_id' });
+
+User.hasMany(MockTestAttempt, { foreignKey: 'user_id' });
+MockTestAttempt.belongsTo(User, { foreignKey: 'user_id' });
+
+MockTest.hasMany(MockTestAttempt, { foreignKey: 'mock_test_id', onDelete: 'CASCADE' });
+MockTestAttempt.belongsTo(MockTest, { foreignKey: 'mock_test_id' });
 
 
 // --- Initialization ---
@@ -348,4 +417,4 @@ const initDB = async () => {
   }
 };
 
-module.exports = { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, initDB };
+module.exports = { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, initDB };
