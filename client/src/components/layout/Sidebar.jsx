@@ -24,10 +24,10 @@ const Sidebar = ({ isOpen, toggleSidebar, role, onLogout }) => {
         { name: 'Mistake Analytics', path: '/admin/mistake-analytics', icon: 'error' },
     ] : [
         { name: 'Dashboard', path: '/student/dashboard', icon: 'dashboard' },
-        { name: 'Mock Tests', path: '/student/mock-tests', icon: 'assignment' },
-        { name: 'Mock Test Reports', path: '/student/mock-test-reports', icon: 'history' },
         { name: 'Mistake Book', path: '/student/mistake-book', icon: 'menu_book' },
         { name: 'Reports', path: '/student/reports', icon: 'assessment' },
+        { name: 'Mock Tests', path: '/student/mock-tests', icon: 'assignment' },
+        { name: 'Mock Test Reports', path: '/student/mock-test-reports', icon: 'history' },
     ];
 
     return (
