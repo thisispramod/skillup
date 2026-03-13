@@ -226,6 +226,7 @@ app.post('/api/tests', authenticateToken, isAdmin, async (req, res) => {
 app.get('/api/admin/tests', authenticateToken, isAdmin, async (req, res) => {
     try {
         const tests = await Test.findAll({
+            where: { test_type: 'standard' },
             include: [
                 { model: Class, attributes: ['id', 'name'] },
                 { model: Batch, attributes: ['id', 'name'] }
@@ -802,6 +803,156 @@ app.get('/api/student/test/:id/questions', authenticateToken, async (req, res) =
         }
         res.json(testData);
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get Available Topics for Auto Gen Test
+app.get('/api/student/topics', authenticateToken, async (req, res) => {
+    try {
+        const topics = await Question.findAll({
+            attributes: [
+                [sequelize.fn('DISTINCT', sequelize.col('topic')), 'topic']
+            ],
+            include: [{
+                model: Test,
+                attributes: [],
+                where: { test_type: 'standard' }
+            }],
+            raw: true
+        });
+        res.json(topics.map(t => t.topic).filter(t => t));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Generate Auto Test
+app.post('/api/student/generate-test', authenticateToken, async (req, res) => {
+    try {
+        const { topic, difficulty, numQs } = req.body;
+        const limit = parseInt(numQs) || 10;
+        
+        // 1. Fetch all questions for the topic from standard tests
+        let questions = await Question.findAll({
+            where: { topic },
+            include: [{
+                model: Test,
+                attributes: [],
+                where: { test_type: 'standard' }
+            }]
+        });
+
+        if (questions.length === 0) {
+            return res.status(404).json({ message: 'No questions found for this topic.' });
+        }
+
+        // 2. Fetch historical attempt data to calculate difficulty dynamically
+        // We need average time and accuracy for each question
+        const questionIds = questions.map(q => q.id);
+        
+        const qTimes = await QuestionTime.findAll({
+            attributes: ['question_id', [sequelize.fn('AVG', sequelize.col('time_spent')), 'avg_time']],
+            where: { question_id: { [Op.in]: questionIds } },
+            group: ['question_id'],
+            raw: true
+        });
+        const timeMap = {};
+        qTimes.forEach(t => timeMap[t.question_id] = parseFloat(t.avg_time) || 0);
+
+        // Fetch mistake counts (proxy for how often it was wrong) vs total attempts
+        // For accurate accuracy, we look at all answers given for these questions
+        const attemptsWhereAnswered = await Attempt.findAll({
+             attributes: ['answers_json'],
+             raw: true
+        });
+
+        const statsMap = {};
+        questionIds.forEach(id => statsMap[id] = { correct: 0, total: 0 });
+
+        attemptsWhereAnswered.forEach(att => {
+            try {
+                const ansObj = JSON.parse(att.answers_json || '{}');
+                questionIds.forEach(qId => {
+                    if (ansObj[qId]) {
+                        statsMap[qId].total++;
+                        // find the correct answer for this question
+                        const q = questions.find(qu => qu.id === qId);
+                        if (ansObj[qId] === q.correct_option) {
+                            statsMap[qId].correct++;
+                        }
+                    }
+                });
+            } catch(e) {}
+        });
+
+        // 3. Determine Dynamic Difficulty and filter
+        const categorizedQuestions = questions.map(q => {
+            const stats = statsMap[q.id];
+            const acc = stats.total > 0 ? (stats.correct / stats.total) : 0.5; // default 50% if no data
+            const avgTime = timeMap[q.id] || 30; // default 30s if no data
+            
+            let qDifficulty = 'medium';
+            
+            // Logic:
+            // High accuracy (>70%) + fast (< 30s) = Easy
+            // Low accuracy (<40%) OR very slow (> 60s) = Hard
+            // Else = Medium
+            if (acc >= 0.7 && avgTime <= 30) {
+                qDifficulty = 'easy';
+            } else if (acc <= 0.4 || avgTime > 60) {
+                qDifficulty = 'hard';
+            }
+
+            return { ...q.toJSON(), computedDifficulty: qDifficulty };
+        });
+
+        // Filter by requested difficulty
+        let filtered = categorizedQuestions.filter(q => q.computedDifficulty === difficulty.toLowerCase());
+        
+        // If not enough questions of exact difficulty, fallback to random from the topic
+        if (filtered.length < limit) {
+             const fallbackNeeded = limit - filtered.length;
+             const others = categorizedQuestions.filter(q => q.computedDifficulty !== difficulty.toLowerCase());
+             const shuffledOthers = shuffleArray(others).slice(0, fallbackNeeded);
+             filtered = [...filtered, ...shuffledOthers];
+        }
+
+        // Shuffle and take limit
+        filtered = shuffleArray(filtered).slice(0, limit);
+
+        if (filtered.length === 0) {
+            return res.status(404).json({ message: 'Could not generate test with requested parameters.' });
+        }
+
+        // 4. Create new Test with test_type = 'auto'
+        const newTest = await Test.create({
+            title: `Auto Test: ${topic} (${difficulty})`,
+            description: `Auto-generated test based on ${topic} with ${difficulty} difficulty.`,
+            duration_minutes: filtered.length * 2, // 2 mins per question avg
+            test_type: 'auto',
+            created_by: req.user.id // Assigning to the student conceptually
+        });
+
+        // 5. Duplicate questions into the new test
+        const qsToInsert = filtered.map(q => ({
+            text: q.text,
+            option_a: q.option_a,
+            option_b: q.option_b,
+            option_c: q.option_c,
+            option_d: q.option_d,
+            correct_option: q.correct_option,
+            marks: q.marks,
+            topic: q.topic,
+            explanation: q.explanation,
+            test_id: newTest.id
+        }));
+
+        await Question.bulkCreate(qsToInsert);
+
+        res.status(201).json({ success: true, test_id: newTest.id });
+    } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 });

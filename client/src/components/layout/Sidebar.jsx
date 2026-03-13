@@ -28,6 +28,7 @@ const Sidebar = ({ isOpen, toggleSidebar, role, onLogout }) => {
         { name: 'Reports', path: '/student/reports', icon: 'assessment' },
         { name: 'Mock Tests', path: '/student/mock-tests', icon: 'assignment' },
         { name: 'Mock Test Reports', path: '/student/mock-test-reports', icon: 'history' },
+        { name: 'Auto Gen Test', path: '/student/generate-test', icon: 'auto_awesome' }
     ];
 
     return (

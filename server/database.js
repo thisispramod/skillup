@@ -114,7 +114,8 @@ const Test = sequelize.define('Test', {
   description: { type: DataTypes.TEXT },
   duration_minutes: { type: DataTypes.INTEGER, allowNull: false },
   start_time: { type: DataTypes.DATE, allowNull: true },
-  end_time: { type: DataTypes.DATE, allowNull: true }
+  end_time: { type: DataTypes.DATE, allowNull: true },
+  test_type: { type: DataTypes.ENUM('standard', 'auto'), defaultValue: 'standard' }
 });
 
 const Question = sequelize.define('Question', {
