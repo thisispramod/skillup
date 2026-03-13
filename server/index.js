@@ -1519,10 +1519,15 @@ app.get('/api/admin/mistakes/analytics', authenticateToken, isAdmin, async (req,
                 'question_id',
                 [sequelize.fn('COUNT', sequelize.col('Mistake.id')), 'count']
             ],
-            include: [{ model: Question, attributes: ['text', 'topic'], required: true }],
-            group: ['question_id', 'Question.id'],
-            order: [[sequelize.col('count'), 'DESC']],
-            limit: 10
+            include: [{ 
+                model: Question, 
+                attributes: ['id', 'text', 'topic'], 
+                required: true 
+            }],
+            group: ['Mistake.question_id', 'Question.id', 'Question.text', 'Question.topic'],
+            order: [[sequelize.literal('count'), 'DESC']],
+            limit: 10,
+            raw: true
         });
 
         // 2. Weakness by Batch (Count of active mistakes per batch)
@@ -1531,13 +1536,19 @@ app.get('/api/admin/mistakes/analytics', authenticateToken, isAdmin, async (req,
             include: [{
                 model: User,
                 attributes: ['batch_id'],
-                include: [{ model: Batch, attributes: ['name'] }]
+                required: true,
+                include: [{ 
+                    model: Batch, 
+                    attributes: ['id', 'name'],
+                    required: true
+                }]
             }],
             attributes: [
                 [sequelize.col('User.batch_id'), 'batch_id'],
                 [sequelize.fn('COUNT', sequelize.col('Mistake.id')), 'mistake_count']
             ],
-            group: ['User.batch_id', 'User.Batch.id']
+            group: ['User.batch_id', 'User->Batch.id', 'User->Batch.name'],
+            raw: true
         });
 
         res.json({

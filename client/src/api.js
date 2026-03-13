@@ -22,4 +22,20 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
+// Handle auth errors globally
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            // Prevent redirect loop if already on login/register
+            if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+                window.location.href = '/login';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 export default api;
