@@ -1051,17 +1051,18 @@ app.post('/api/student/submit', authenticateToken, async (req, res) => {
                         mistake.status = 'active';
                         await mistake.save();
                     }
-                } else if (userAns === q.correct_option) {
-                    // If corrected during a regular test, mark as improved
-                    const existingMistake = await Mistake.findOne({
-                        where: { user_id: req.user.id, question_id: q.id, test_id }
-                    });
-                    if (existingMistake && existingMistake.status === 'active') {
-                        existingMistake.status = 'improved';
-                        existingMistake.consecutive_correct_retries += 1;
-                        await existingMistake.save();
-                    }
                 }
+                // else if (userAns === q.correct_option) {
+                //     // If corrected during a regular test, mark as improved
+                //     const existingMistake = await Mistake.findOne({
+                //         where: { user_id: req.user.id, question_id: q.id, test_id }
+                //     });
+                //     if (existingMistake && existingMistake.status === 'active') {
+                //         existingMistake.status = 'improved';
+                //         existingMistake.consecutive_correct_retries += 1;
+                //         await existingMistake.save();
+                //     }
+                // }
             });
 
             await QuestionTime.bulkCreate(timeRecords);
