@@ -1002,6 +1002,7 @@ app.post('/api/student/submit', authenticateToken, async (req, res) => {
         });
 
         // 4. Save Time and Handle Mistakes
+        // 4. Save Time and Handle Mistakes
         if (timeSpentPerQuestion) {
             // Fetch historical average times (before this attempt)
             const avgTimes = await QuestionTime.findAll({
@@ -1049,6 +1050,16 @@ app.post('/api/student/submit', authenticateToken, async (req, res) => {
                         mistake.consecutive_correct_retries = 0;
                         mistake.status = 'active';
                         await mistake.save();
+                    }
+                } else if (userAns === q.correct_option) {
+                    // If corrected during a regular test, mark as improved
+                    const existingMistake = await Mistake.findOne({
+                        where: { user_id: req.user.id, question_id: q.id, test_id }
+                    });
+                    if (existingMistake && existingMistake.status === 'active') {
+                        existingMistake.status = 'improved';
+                        existingMistake.consecutive_correct_retries += 1;
+                        await existingMistake.save();
                     }
                 }
             });
