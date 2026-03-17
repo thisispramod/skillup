@@ -722,6 +722,11 @@ app.get('/api/student/rank', authenticateToken, async (req, res) => {
                 [sequelize.fn('SUM', sequelize.col('total_questions')), 'totalQs'],
                 [sequelize.fn('SUM', sequelize.col('total_time')), 'totalTime']
             ],
+            include: [{
+                model: Test,
+                attributes: [],
+                where: { test_type: 'standard' }
+            }],
             group: ['user_id'],
             raw: true
         });
@@ -770,6 +775,7 @@ app.get('/api/student/tests', authenticateToken, async (req, res) => {
                 }
             ],
             where: {
+                test_type: 'standard',
                 [Op.or]: [
                     { '$Classes.id$': user.class_id },
                     { '$Batches.id$': user.batch_id }
@@ -1081,7 +1087,11 @@ app.get('/api/student/results', authenticateToken, async (req, res) => {
     try {
         const attempts = await Attempt.findAll({
             where: { user_id: req.user.id },
-            include: [{ model: Test, attributes: ['title'] }],
+            include: [{ 
+                model: Test, 
+                attributes: ['title'],
+                where: { test_type: 'standard' }
+            }],
             order: [['createdAt', 'DESC']]
         });
         res.json(attempts);
@@ -1164,7 +1174,11 @@ app.get('/api/student/performance', authenticateToken, async (req, res) => {
     try {
         const attempts = await Attempt.findAll({
             where: { user_id: req.user.id },
-            include: [{ model: Test, attributes: ['title'] }],
+            include: [{ 
+                model: Test, 
+                attributes: ['title'],
+                where: { test_type: 'standard' }
+            }],
             order: [['createdAt', 'DESC']]
         });
 
