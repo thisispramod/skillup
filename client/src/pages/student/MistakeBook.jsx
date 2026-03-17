@@ -34,9 +34,14 @@ const MistakeBook = () => {
         try {
             const res = await api.post(`/student/mistakes/${retryMistake.id}/retry`, { answer: selectedAnswer });
             setRetryResult(res.data);
+            // if (res.data.isCorrect) {
+            //     // Update local status
+            //     setMistakes(prev => prev.map(m => m.id === retryMistake.id ? { ...m, status: 'improved' } : m));
+                
+            // }
             if (res.data.isCorrect) {
                 // Update local status
-                setMistakes(prev => prev.map(m => m.id === retryMistake.id ? { ...m, status: 'improved' } : m));
+                setMistakes(prev => prev.map(m => m.id === retryMistake.id ? { ...m, status: res.data.status } : m));
             }
         } catch (err) {
             console.error(err);
