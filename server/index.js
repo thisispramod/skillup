@@ -645,7 +645,7 @@ app.post('/api/admin/mock-test-sections/:sectionId/questions', authenticateToken
         // Update counts
         const sectionCount = await MockTestQuestion.count({ where: { section_id: sectionId } });
         await section.update({ total_questions: sectionCount });
-        
+
         const testCount = await MockTestQuestion.count({ where: { mock_test_id: section.mock_test_id } });
         await MockTest.update({ total_questions: testCount }, { where: { id: section.mock_test_id } });
 
@@ -660,7 +660,7 @@ app.put('/api/admin/mock-test-questions/:id', authenticateToken, isAdmin, async 
     try {
         const question = await MockTestQuestion.findByPk(req.params.id);
         if (!question) return res.status(404).json({ message: 'Question not found' });
-        
+
         await question.update(req.body);
         res.json(question);
     } catch (err) {
@@ -673,16 +673,16 @@ app.delete('/api/admin/mock-test-questions/:id', authenticateToken, isAdmin, asy
     try {
         const question = await MockTestQuestion.findByPk(req.params.id);
         if (!question) return res.status(404).json({ message: 'Question not found' });
-        
+
         const sectionId = question.section_id;
         const mockTestId = question.mock_test_id;
-        
+
         await question.destroy();
 
         // Update counts
         const sectionCount = await MockTestQuestion.count({ where: { section_id: sectionId } });
         await MockTestSection.update({ total_questions: sectionCount }, { where: { id: sectionId } });
-        
+
         const testCount = await MockTestQuestion.count({ where: { mock_test_id: mockTestId } });
         await MockTest.update({ total_questions: testCount }, { where: { id: mockTestId } });
 
@@ -832,7 +832,7 @@ app.post('/api/student/generate-test', authenticateToken, async (req, res) => {
     try {
         const { topic, difficulty, numQs } = req.body;
         const limit = parseInt(numQs) || 10;
-        
+
         // 1. Fetch all questions for the topic from standard tests
         let questions = await Question.findAll({
             where: { topic },
@@ -850,7 +850,7 @@ app.post('/api/student/generate-test', authenticateToken, async (req, res) => {
         // 2. Fetch historical attempt data to calculate difficulty dynamically
         // We need average time and accuracy for each question
         const questionIds = questions.map(q => q.id);
-        
+
         const qTimes = await QuestionTime.findAll({
             attributes: ['question_id', [sequelize.fn('AVG', sequelize.col('time_spent')), 'avg_time']],
             where: { question_id: { [Op.in]: questionIds } },
@@ -863,8 +863,8 @@ app.post('/api/student/generate-test', authenticateToken, async (req, res) => {
         // Fetch mistake counts (proxy for how often it was wrong) vs total attempts
         // For accurate accuracy, we look at all answers given for these questions
         const attemptsWhereAnswered = await Attempt.findAll({
-             attributes: ['answers_json'],
-             raw: true
+            attributes: ['answers_json'],
+            raw: true
         });
 
         const statsMap = {};
@@ -883,7 +883,7 @@ app.post('/api/student/generate-test', authenticateToken, async (req, res) => {
                         }
                     }
                 });
-            } catch(e) {}
+            } catch (e) { }
         });
 
         // 3. Determine Dynamic Difficulty and filter
@@ -891,9 +891,9 @@ app.post('/api/student/generate-test', authenticateToken, async (req, res) => {
             const stats = statsMap[q.id];
             const acc = stats.total > 0 ? (stats.correct / stats.total) : 0.5; // default 50% if no data
             const avgTime = timeMap[q.id] || 30; // default 30s if no data
-            
+
             let qDifficulty = 'medium';
-            
+
             // Logic:
             // High accuracy (>70%) + fast (< 30s) = Easy
             // Low accuracy (<40%) OR very slow (> 60s) = Hard
@@ -909,13 +909,13 @@ app.post('/api/student/generate-test', authenticateToken, async (req, res) => {
 
         // Filter by requested difficulty
         let filtered = categorizedQuestions.filter(q => q.computedDifficulty === difficulty.toLowerCase());
-        
+
         // If not enough questions of exact difficulty, fallback to random from the topic
         if (filtered.length < limit) {
-             const fallbackNeeded = limit - filtered.length;
-             const others = categorizedQuestions.filter(q => q.computedDifficulty !== difficulty.toLowerCase());
-             const shuffledOthers = shuffleArray(others).slice(0, fallbackNeeded);
-             filtered = [...filtered, ...shuffledOthers];
+            const fallbackNeeded = limit - filtered.length;
+            const others = categorizedQuestions.filter(q => q.computedDifficulty !== difficulty.toLowerCase());
+            const shuffledOthers = shuffleArray(others).slice(0, fallbackNeeded);
+            filtered = [...filtered, ...shuffledOthers];
         }
 
         // Shuffle and take limit
@@ -1482,9 +1482,7 @@ app.post('/api/student/mistakes/:id/retry', authenticateToken, async (req, res) 
 
         if (isCorrect) {
             mistake.consecutive_correct_retries += 1;
-            if (mistake.consecutive_correct_retries >= 2) {
-                mistake.status = 'improved';
-            }
+            mistake.status = 'improved';
         } else {
             mistake.consecutive_correct_retries = 0;
             mistake.status = 'active';
@@ -1531,10 +1529,10 @@ app.get('/api/admin/mistakes/analytics', authenticateToken, isAdmin, async (req,
                 'question_id',
                 [sequelize.fn('COUNT', sequelize.col('Mistake.id')), 'count']
             ],
-            include: [{ 
-                model: Question, 
-                attributes: ['id', 'text', 'topic'], 
-                required: true 
+            include: [{
+                model: Question,
+                attributes: ['id', 'text', 'topic'],
+                required: true
             }],
             group: ['Mistake.question_id', 'Question.id', 'Question.text', 'Question.topic'],
             order: [[sequelize.literal('count'), 'DESC']],
@@ -1549,8 +1547,8 @@ app.get('/api/admin/mistakes/analytics', authenticateToken, isAdmin, async (req,
                 model: User,
                 attributes: ['batch_id'],
                 required: true,
-                include: [{ 
-                    model: Batch, 
+                include: [{
+                    model: Batch,
                     attributes: ['id', 'name'],
                     required: true
                 }]
