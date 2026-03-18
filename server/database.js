@@ -210,6 +210,21 @@ const Mistake = sequelize.define('Mistake', {
   // Timestamps are automatic
 });
 
+// --- Habit Tracker Models ---
+const Habit = sequelize.define('Habit', {
+  habit_name: { type: DataTypes.STRING, allowNull: false },
+  category: { type: DataTypes.STRING, allowNull: false },
+  start_date: { type: DataTypes.DATEONLY, allowNull: false },
+  goal: { type: DataTypes.STRING, allowNull: true },
+  points: { type: DataTypes.INTEGER, defaultValue: 0 },
+  weekly_target: { type: DataTypes.INTEGER, defaultValue: 7 } // Added for weekly goal system (e.g., 5 days/week)
+});
+
+const HabitLog = sequelize.define('HabitLog', {
+  date: { type: DataTypes.DATEONLY, allowNull: false },
+  status: { type: DataTypes.BOOLEAN, defaultValue: false } // 0 = Not Done, 1 = Done
+});
+
 // --- Relationships ---
 
 User.hasMany(Test, { foreignKey: 'created_by' });
@@ -285,6 +300,16 @@ MockTestAttempt.belongsTo(User, { foreignKey: 'user_id' });
 
 MockTest.hasMany(MockTestAttempt, { foreignKey: 'mock_test_id', onDelete: 'CASCADE' });
 MockTestAttempt.belongsTo(MockTest, { foreignKey: 'mock_test_id' });
+
+// Habit Tracker Relationships
+User.hasMany(Habit, { foreignKey: 'user_id' });
+Habit.belongsTo(User, { foreignKey: 'user_id' });
+
+Habit.hasMany(HabitLog, { foreignKey: 'habit_id', onDelete: 'CASCADE' });
+HabitLog.belongsTo(Habit, { foreignKey: 'habit_id' });
+
+User.hasMany(HabitLog, { foreignKey: 'user_id' });
+HabitLog.belongsTo(User, { foreignKey: 'user_id' });
 
 
 // --- Initialization ---
@@ -418,4 +443,4 @@ const initDB = async () => {
   }
 };
 
-module.exports = { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, initDB };
+module.exports = { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, Habit, HabitLog, initDB };

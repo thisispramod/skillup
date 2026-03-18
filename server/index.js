@@ -5,7 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, initDB } = require('./database');
+const { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, Habit, HabitLog, initDB } = require('./database');
 const { Op } = require('sequelize');
 const multer = require('multer');
 const xlsx = require('xlsx');
@@ -722,6 +722,11 @@ app.get('/api/student/rank', authenticateToken, async (req, res) => {
                 [sequelize.fn('SUM', sequelize.col('total_questions')), 'totalQs'],
                 [sequelize.fn('SUM', sequelize.col('total_time')), 'totalTime']
             ],
+            include: [{
+                model: Test,
+                attributes: [],
+                where: { test_type: 'standard' }
+            }],
             group: ['user_id'],
             raw: true
         });
@@ -770,6 +775,7 @@ app.get('/api/student/tests', authenticateToken, async (req, res) => {
                 }
             ],
             where: {
+                test_type: 'standard',
                 [Op.or]: [
                     { '$Classes.id$': user.class_id },
                     { '$Batches.id$': user.batch_id }
@@ -1081,7 +1087,11 @@ app.get('/api/student/results', authenticateToken, async (req, res) => {
     try {
         const attempts = await Attempt.findAll({
             where: { user_id: req.user.id },
-            include: [{ model: Test, attributes: ['title'] }],
+            include: [{ 
+                model: Test, 
+                attributes: ['title'],
+                where: { test_type: 'standard' }
+            }],
             order: [['createdAt', 'DESC']]
         });
         res.json(attempts);
@@ -1164,7 +1174,11 @@ app.get('/api/student/performance', authenticateToken, async (req, res) => {
     try {
         const attempts = await Attempt.findAll({
             where: { user_id: req.user.id },
-            include: [{ model: Test, attributes: ['title'] }],
+            include: [{ 
+                model: Test, 
+                attributes: ['title'],
+                where: { test_type: 'standard' }
+            }],
             order: [['createdAt', 'DESC']]
         });
 
@@ -1406,7 +1420,96 @@ app.get('/api/rankings/:testId', authenticateToken, async (req, res) => {
     }
 });
 
-// Start
+// --- HABIT TRACKER ROUTES ---
+
+// Get Habits & Logs
+app.get('/api/student/habits', authenticateToken, async (req, res) => {
+    try {
+        const habits = await Habit.findAll({
+            where: { user_id: req.user.id },
+            include: [{ model: HabitLog }]
+        });
+        res.json(habits);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create Habit
+app.post('/api/student/habits', authenticateToken, async (req, res) => {
+    try {
+        const { habit_name, category, start_date, goal, weekly_target } = req.body;
+        const habit = await Habit.create({
+            habit_name,
+            category,
+            start_date,
+            goal,
+            weekly_target: weekly_target || 7,
+            user_id: req.user.id
+        });
+        res.status(201).json(habit);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Update Weekly Target
+app.put('/api/student/habits/:id/target', authenticateToken, async (req, res) => {
+    try {
+        const { weekly_target } = req.body;
+        const habit = await Habit.findOne({ where: { id: req.params.id, user_id: req.user.id } });
+        if (!habit) return res.status(404).json({ message: 'Habit not found' });
+        
+        habit.weekly_target = weekly_target;
+        await habit.save();
+        res.json(habit);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Toggle Habit Log
+app.post('/api/student/habits/:id/log', authenticateToken, async (req, res) => {
+    try {
+        const { date, status } = req.body;
+        const habit = await Habit.findOne({ where: { id: req.params.id, user_id: req.user.id } });
+        if (!habit) return res.status(404).json({ message: 'Habit not found' });
+
+        const [log, created] = await HabitLog.findOrCreate({
+            where: { habit_id: habit.id, date, user_id: req.user.id },
+            defaults: { status }
+        });
+
+        if (!created) {
+            log.status = status;
+            await log.save();
+        }
+
+        if (status) {
+            habit.points += 5;
+        } else if (!created) {
+            habit.points = Math.max(0, habit.points - 5);
+        }
+        await habit.save();
+
+        res.json({ log, points: habit.points });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Delete Habit
+app.delete('/api/student/habits/:id', authenticateToken, async (req, res) => {
+    try {
+        const habit = await Habit.findOne({ where: { id: req.params.id, user_id: req.user.id } });
+        if (!habit) return res.status(404).json({ message: 'Habit not found' });
+        await habit.destroy();
+        res.json({ message: 'Habit deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- MISTAKE BOOK ROUTES ---
 
 // Get Mistakes
