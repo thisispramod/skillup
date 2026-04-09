@@ -82,13 +82,11 @@ const TakeTest = () => {
                 if (needsTranslation && !translationsRef.current[currentQObj.id]?.[language]) {
                     setIsTranslating(true);
                     try {
-                        const [text, optA, optB, optC, optD] = await Promise.all([
-                            translateText(currentQObj.text, language),
-                            translateText(currentQObj.option_a, language),
-                            translateText(currentQObj.option_b, language),
-                            translateText(currentQObj.option_c, language),
-                            translateText(currentQObj.option_d, language)
-                        ]);
+                        const text = await translateText(currentQObj.text, language);
+                        const optA = await translateText(currentQObj.option_a, language);
+                        const optB = await translateText(currentQObj.option_b, language);
+                        const optC = await translateText(currentQObj.option_c, language);
+                        const optD = await translateText(currentQObj.option_d, language);
                         if (isActive) {
                             setTranslations(prev => ({
                                 ...prev,

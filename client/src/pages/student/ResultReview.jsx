@@ -58,14 +58,12 @@ const ResultReview = () => {
                     firstNeedTran = false;
 
                     try {
-                        const [text, optA, optB, optC, optD, expl] = await Promise.all([
-                            translateText(qObj.text, language),
-                            translateText(qObj.option_a, language),
-                            translateText(qObj.option_b, language),
-                            translateText(qObj.option_c, language),
-                            translateText(qObj.option_d, language),
-                            translateText(qObj.explanation, language)
-                        ]);
+                        const text = await translateText(qObj.text, language);
+                        const optA = await translateText(qObj.option_a, language);
+                        const optB = await translateText(qObj.option_b, language);
+                        const optC = await translateText(qObj.option_c, language);
+                        const optD = await translateText(qObj.option_d, language);
+                        const expl = await translateText(qObj.explanation, language);
                         if (isActive) {
                             setTranslations(prev => ({
                                 ...prev,
