@@ -40,6 +40,91 @@ const TakeTest = () => {
     const [submitting, setSubmitting] = useState(false);
     const [showPalette, setShowPalette] = useState(false);
 
+    // Language Toggle States
+    const [language, setLanguage] = useState(() => localStorage.getItem(`test_language_${id}`) || 'en');
+    const [translations, setTranslations] = useState({});
+    const translationsRef = useRef({});
+    useEffect(() => {
+        translationsRef.current = translations;
+    }, [translations]);
+    const [isTranslating, setIsTranslating] = useState(false);
+
+    const toggleLanguage = () => {
+        const newLang = language === 'en' ? 'hi' : 'en';
+        setLanguage(newLang);
+        localStorage.setItem(`test_language_${id}`, newLang);
+    };
+
+    const translateText = async (text) => {
+        if (!text) return '';
+        try {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hi&dt=t&q=${encodeURIComponent(text)}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            return data[0].map(item => item[0]).join('');
+        } catch (e) {
+            console.error(e);
+            return text;
+        }
+    };
+
+    useEffect(() => {
+        if (language === 'hi' && questions.length > 0) {
+            let isActive = true;
+            
+            const runTranslationTasks = async () => {
+                const currentQObj = questions[currentQRef.current]; // Use ref to get right now
+                if (!currentQObj) return;
+
+                if (!translationsRef.current[currentQObj.id]) {
+                    setIsTranslating(true);
+                    try {
+                        const [text, optA, optB, optC, optD] = await Promise.all([
+                            translateText(currentQObj.text),
+                            translateText(currentQObj.option_a),
+                            translateText(currentQObj.option_b),
+                            translateText(currentQObj.option_c),
+                            translateText(currentQObj.option_d)
+                        ]);
+                        if (isActive) {
+                            setTranslations(prev => ({
+                                ...prev,
+                                [currentQObj.id]: { text, option_a: optA, option_b: optB, option_c: optC, option_d: optD }
+                            }));
+                        }
+                    } catch(e) {}
+                    if (isActive) setIsTranslating(false);
+                }
+
+                // Translate rest
+                for (let i = 0; i < questions.length; i++) {
+                    if (!isActive) break;
+                    const qObj = questions[i];
+                    if (translationsRef.current[qObj.id]) continue;
+                    
+                    try {
+                        const [text, optA, optB, optC, optD] = await Promise.all([
+                            translateText(qObj.text),
+                            translateText(qObj.option_a),
+                            translateText(qObj.option_b),
+                            translateText(qObj.option_c),
+                            translateText(qObj.option_d)
+                        ]);
+                        if (isActive) {
+                            setTranslations(prev => ({
+                                ...prev,
+                                [qObj.id]: { text, option_a: optA, option_b: optB, option_c: optC, option_d: optD }
+                            }));
+                        }
+                    } catch(e) {}
+                    await new Promise(r => setTimeout(r, 100)); // slight pause to prevent blocking
+                }
+            };
+            runTranslationTasks();
+            return () => { isActive = false; };
+        }
+    }, [language, currentQ, questions]);
+
     const timerRef = useRef(null);
 
     useEffect(() => {
@@ -181,6 +266,10 @@ const TakeTest = () => {
     );
 
     const currentQuestion = questions[currentQ];
+    const displayQ = (language === 'hi' && translations[currentQuestion?.id]) 
+        ? { ...currentQuestion, ...translations[currentQuestion.id] } 
+        : currentQuestion;
+
     const selectedOption = currentQuestion ? answers[currentQuestion.id] : null;
 
     if (!currentQuestion) return (
@@ -208,9 +297,23 @@ const TakeTest = () => {
                 </div>
 
                 <div className="flex items-center gap-6">
-                    <div className={`flex items-center gap-3 px-6 py-2.5 rounded-2xl font-mono text-xl font-bold border-2 transition-colors ${timeLeft < 300 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-700'
+                    {/* Language Toggle */}
+                    <button
+                        onClick={toggleLanguage}
+                        className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden font-bold text-sm shadow-sm transition-all hover:shadow"
+                    >
+                        <div className={`px-4 py-2 transition-colors ${language === 'en' ? 'bg-primary-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>EN</div>
+                        <div className={`px-4 py-2 transition-colors ${language === 'hi' ? 'bg-primary-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>हिंदी</div>
+                    </button>
+
+                    <div className={`hidden sm:flex items-center gap-3 px-6 py-2.5 rounded-2xl font-mono text-xl font-bold border-2 transition-colors ${timeLeft < 300 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-700'
                         }`}>
                         <span className="material-symbols-rounded">timer</span>
+                        {formatTime(timeLeft)}
+                    </div>
+                    <div className={`sm:hidden flex items-center gap-2 px-3 py-2 rounded-xl font-mono font-bold border-2 transition-colors ${timeLeft < 300 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-700'
+                        }`}>
+                        <span className="material-symbols-rounded text-lg">timer</span>
                         {formatTime(timeLeft)}
                     </div>
                     <button
@@ -251,8 +354,13 @@ const TakeTest = () => {
                         </div>
 
                         <div className="space-y-8">
-                            <h1 className="text-2xl font-bold text-slate-800 leading-relaxed">
-                                {currentQuestion?.text}
+                            <h1 className="text-2xl font-bold text-slate-800 leading-relaxed relative">
+                                {isTranslating && language === 'hi' && (
+                                    <div className="absolute inset-x-0 inset-y-[-10px] bg-slate-50/70 backdrop-blur-[2px] flex items-center justify-center z-10 rounded-xl">
+                                        <div className="w-6 h-6 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+                                    </div>
+                                )}
+                                {displayQ?.text}
                             </h1>
 
                             <div className="grid grid-cols-1 gap-4">
@@ -274,7 +382,7 @@ const TakeTest = () => {
                                         </div>
                                         <span className={`text-lg font-medium transition-colors ${selectedOption === opt ? 'text-primary-900' : 'text-slate-700'
                                             }`}>
-                                            {currentQuestion?.[`option_${opt.toLowerCase()}`]}
+                                            {displayQ?.[`option_${opt.toLowerCase()}`]}
                                         </span>
                                         {selectedOption === opt && (
                                             <span className="material-symbols-rounded ml-auto text-primary-600">check_circle</span>
