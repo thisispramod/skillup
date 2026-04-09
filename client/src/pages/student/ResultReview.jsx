@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../api';
 import StatCard from '../../components/common/StatCard';
@@ -10,6 +10,80 @@ const ResultReview = () => {
     const [attempt, setAttempt] = useState(null);
     const [rankings, setRankings] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    // Language Toggle States
+    const [language, setLanguage] = useState(() => localStorage.getItem('review_language') || 'en');
+    const [translations, setTranslations] = useState({});
+    const translationsRef = useRef({});
+    useEffect(() => {
+        translationsRef.current = translations;
+    }, [translations]);
+    const [isTranslating, setIsTranslating] = useState(false);
+
+    const toggleLanguage = () => {
+        const newLang = language === 'en' ? 'hi' : 'en';
+        setLanguage(newLang);
+        localStorage.setItem('review_language', newLang);
+    };
+
+    const translateText = async (text, targetLang) => {
+        if (!text) return '';
+        try {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            return data[0].map(item => item[0]).join('');
+        } catch (e) {
+            console.error(e);
+            return text;
+        }
+    };
+
+    useEffect(() => {
+        if (attempt?.Test?.Questions) {
+            const questions = attempt.Test.Questions;
+            let isActive = true;
+            
+            const runTranslationTasks = async () => {
+                let firstNeedTran = true;
+                for (let i = 0; i < questions.length; i++) {
+                    if (!isActive) break;
+                    const qObj = questions[i];
+                    if (!qObj) continue;
+                    
+                    const qOrigLang = /[\u0900-\u097F]/.test(qObj.text || '') ? 'hi' : 'en';
+                    if (qOrigLang === language || translationsRef.current[qObj.id]?.[language]) continue;
+                    
+                    if (firstNeedTran) setIsTranslating(true);
+                    firstNeedTran = false;
+
+                    try {
+                        const [text, optA, optB, optC, optD, expl] = await Promise.all([
+                            translateText(qObj.text, language),
+                            translateText(qObj.option_a, language),
+                            translateText(qObj.option_b, language),
+                            translateText(qObj.option_c, language),
+                            translateText(qObj.option_d, language),
+                            translateText(qObj.explanation, language)
+                        ]);
+                        if (isActive) {
+                            setTranslations(prev => ({
+                                ...prev,
+                                [qObj.id]: { 
+                                    ...prev[qObj.id], 
+                                    [language]: { text, option_a: optA, option_b: optB, option_c: optC, option_d: optD, explanation: expl } 
+                                }
+                            }));
+                        }
+                    } catch(e) {}
+                    await new Promise(r => setTimeout(r, 100)); // slight pause to prevent blocking
+                }
+                if (isActive) setIsTranslating(false);
+            };
+            runTranslationTasks();
+            return () => { isActive = false; };
+        }
+    }, [language, attempt]);
 
     useEffect(() => {
         const fetchResult = async () => {
@@ -81,7 +155,7 @@ const ResultReview = () => {
         <div className="space-y-8 animate-fade-in pb-20">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <Link to="/student/reports" className="p-2 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 border border-transparent hover:border-slate-200 transition-all">
                         <span className="material-symbols-rounded">arrow_back</span>
                     </Link>
@@ -89,6 +163,18 @@ const ResultReview = () => {
                         <h1 className="text-2xl font-bold text-slate-800">{test.title} - Review</h1>
                         <p className="text-slate-500 font-medium font-inter">Completed on {new Date(attempt.completed_at).toLocaleString()}</p>
                     </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    {/* Language Toggle */}
+                    <button
+                        onClick={toggleLanguage}
+                        className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden font-bold text-sm shadow-sm transition-all hover:shadow"
+                    >
+                        <div className={`px-4 py-2 transition-colors ${language === 'en' ? 'bg-primary-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>EN</div>
+                        <div className={`px-4 py-2 transition-colors ${language === 'hi' ? 'bg-primary-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>हिंदी</div>
+                    </button>
+                    {isTranslating && <div className="w-5 h-5 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>}
                 </div>
             </div>
 
@@ -197,6 +283,12 @@ const ResultReview = () => {
                 <div className="flex flex-col gap-6">
                     {questions.map((q, idx) => {
                         if (!q) return null;
+
+                        const origLang = /[\u0900-\u097F]/.test(q.text || '') ? 'hi' : 'en';
+                        const displayQ = (origLang !== language && translations[q.id]?.[language]) 
+                            ? { ...q, ...translations[q.id][language] } 
+                            : q;
+
                         const userAns = userAnswers[q.id];
                         const isCorrect = userAns === q.correct_option;
                         const isUnattempted = !userAns;
@@ -235,11 +327,11 @@ const ResultReview = () => {
                                                 Time Spent: {formatTime(timeSpent)}
                                             </span>
                                         </div>
-                                         <h3 className="text-xl font-bold text-slate-800 leading-relaxed mb-8">{q.text || 'Deleted Question'}</h3>
+                                         <h3 className="text-xl font-bold text-slate-800 leading-relaxed mb-8">{displayQ.text || 'Deleted Question'}</h3>
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             {['A', 'B', 'C', 'D'].map(opt => {
-                                                const optText = q[`option_${opt.toLowerCase()}`];
+                                                const optText = displayQ[`option_${opt.toLowerCase()}`];
                                                 const isThisCorrect = opt === q.correct_option;
                                                 const isThisUserAns = opt === userAns;
 
@@ -284,10 +376,10 @@ const ResultReview = () => {
                                     </div>
                                     <div>
                                         <p className="text-sm text-slate-800 font-bold mb-2">
-                                            Correct Answer: <span className="text-emerald-600 ml-1">Option {q.correct_option}: {q[`option_${q.correct_option?.toLowerCase()}`] || 'N/A'}</span>
+                                            Correct Answer: <span className="text-emerald-600 ml-1">Option {q.correct_option}: {displayQ[`option_${q.correct_option?.toLowerCase()}`] || 'N/A'}</span>
                                         </p>
                                         <p className="text-sm text-slate-600 leading-relaxed font-inter italic">
-                                            {q.explanation || 'No detailed explanation currently available for this question. Consult your textbook for theoretical context.'}
+                                            {displayQ.explanation || 'No detailed explanation currently available for this question. Consult your textbook for theoretical context.'}
                                         </p>
                                     </div>
                                 </div>
