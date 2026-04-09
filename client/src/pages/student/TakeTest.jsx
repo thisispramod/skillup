@@ -55,10 +55,10 @@ const TakeTest = () => {
         localStorage.setItem(`test_language_${id}`, newLang);
     };
 
-    const translateText = async (text) => {
+    const translateText = async (text, targetLang) => {
         if (!text) return '';
         try {
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hi&dt=t&q=${encodeURIComponent(text)}`;
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
             const res = await fetch(url);
             const data = await res.json();
             return data[0].map(item => item[0]).join('');
@@ -69,27 +69,33 @@ const TakeTest = () => {
     };
 
     useEffect(() => {
-        if (language === 'hi' && questions.length > 0) {
+        if (questions.length > 0) {
             let isActive = true;
             
             const runTranslationTasks = async () => {
-                const currentQObj = questions[currentQRef.current]; // Use ref to get right now
+                const currentQObj = questions[currentQ];
                 if (!currentQObj) return;
 
-                if (!translationsRef.current[currentQObj.id]) {
+                const origLang = /[\u0900-\u097F]/.test(currentQObj.text || '') ? 'hi' : 'en';
+                const needsTranslation = origLang !== language;
+
+                if (needsTranslation && !translationsRef.current[currentQObj.id]?.[language]) {
                     setIsTranslating(true);
                     try {
                         const [text, optA, optB, optC, optD] = await Promise.all([
-                            translateText(currentQObj.text),
-                            translateText(currentQObj.option_a),
-                            translateText(currentQObj.option_b),
-                            translateText(currentQObj.option_c),
-                            translateText(currentQObj.option_d)
+                            translateText(currentQObj.text, language),
+                            translateText(currentQObj.option_a, language),
+                            translateText(currentQObj.option_b, language),
+                            translateText(currentQObj.option_c, language),
+                            translateText(currentQObj.option_d, language)
                         ]);
                         if (isActive) {
                             setTranslations(prev => ({
                                 ...prev,
-                                [currentQObj.id]: { text, option_a: optA, option_b: optB, option_c: optC, option_d: optD }
+                                [currentQObj.id]: { 
+                                    ...prev[currentQObj.id], 
+                                    [language]: { text, option_a: optA, option_b: optB, option_c: optC, option_d: optD } 
+                                }
                             }));
                         }
                     } catch(e) {}
@@ -100,20 +106,25 @@ const TakeTest = () => {
                 for (let i = 0; i < questions.length; i++) {
                     if (!isActive) break;
                     const qObj = questions[i];
-                    if (translationsRef.current[qObj.id]) continue;
+                    
+                    const qOrigLang = /[\u0900-\u097F]/.test(qObj.text || '') ? 'hi' : 'en';
+                    if (qOrigLang === language || translationsRef.current[qObj.id]?.[language]) continue;
                     
                     try {
                         const [text, optA, optB, optC, optD] = await Promise.all([
-                            translateText(qObj.text),
-                            translateText(qObj.option_a),
-                            translateText(qObj.option_b),
-                            translateText(qObj.option_c),
-                            translateText(qObj.option_d)
+                            translateText(qObj.text, language),
+                            translateText(qObj.option_a, language),
+                            translateText(qObj.option_b, language),
+                            translateText(qObj.option_c, language),
+                            translateText(qObj.option_d, language)
                         ]);
                         if (isActive) {
                             setTranslations(prev => ({
                                 ...prev,
-                                [qObj.id]: { text, option_a: optA, option_b: optB, option_c: optC, option_d: optD }
+                                [qObj.id]: { 
+                                    ...prev[qObj.id], 
+                                    [language]: { text, option_a: optA, option_b: optB, option_c: optC, option_d: optD } 
+                                }
                             }));
                         }
                     } catch(e) {}
@@ -266,8 +277,11 @@ const TakeTest = () => {
     );
 
     const currentQuestion = questions[currentQ];
-    const displayQ = (language === 'hi' && translations[currentQuestion?.id]) 
-        ? { ...currentQuestion, ...translations[currentQuestion.id] } 
+    
+    // Determine the original language of the current question
+    const origLang = currentQuestion && /[\u0900-\u097F]/.test(currentQuestion.text || '') ? 'hi' : 'en';
+    const displayQ = (origLang !== language && translations[currentQuestion?.id]?.[language]) 
+        ? { ...currentQuestion, ...translations[currentQuestion.id][language] } 
         : currentQuestion;
 
     const selectedOption = currentQuestion ? answers[currentQuestion.id] : null;
@@ -355,7 +369,7 @@ const TakeTest = () => {
 
                         <div className="space-y-8">
                             <h1 className="text-2xl font-bold text-slate-800 leading-relaxed relative">
-                                {isTranslating && language === 'hi' && (
+                                {isTranslating && origLang !== language && (
                                     <div className="absolute inset-x-0 inset-y-[-10px] bg-slate-50/70 backdrop-blur-[2px] flex items-center justify-center z-10 rounded-xl">
                                         <div className="w-6 h-6 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
                                     </div>
