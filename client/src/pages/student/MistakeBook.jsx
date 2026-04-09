@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import api from '../../api';
 import StatCard from '../../components/common/StatCard';
 import Modal from '../../components/common/Modal';
@@ -13,9 +13,81 @@ const MistakeBook = () => {
     const [selectedAnswer, setSelectedAnswer] = useState('');
     const [retryResult, setRetryResult] = useState(null);
 
+    // Language Toggle States
+    const [language, setLanguage] = useState(() => localStorage.getItem('mistakebook_language') || 'en');
+    const [translations, setTranslations] = useState({});
+    const translationsRef = useRef({});
+    useEffect(() => {
+        translationsRef.current = translations;
+    }, [translations]);
+    const [isTranslating, setIsTranslating] = useState(false);
+
+    const toggleLanguage = () => {
+        const newLang = language === 'en' ? 'hi' : 'en';
+        setLanguage(newLang);
+        localStorage.setItem('mistakebook_language', newLang);
+    };
+
+    const translateText = async (text, targetLang) => {
+        if (!text) return '';
+        try {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            return data[0].map(item => item[0]).join('');
+        } catch (e) {
+            console.error(e);
+            return text;
+        }
+    };
+
     useEffect(() => {
         fetchMistakes();
     }, []);
+
+    useEffect(() => {
+        if (mistakes.length > 0) {
+            let isActive = true;
+
+            const runTranslationTasks = async () => {
+                let firstNeedTran = true;
+                for (let i = 0; i < mistakes.length; i++) {
+                    if (!isActive) break;
+                    const qObj = mistakes[i]?.Question;
+                    if (!qObj) continue;
+
+                    const qOrigLang = /[\u0900-\u097F]/.test(qObj.text || '') ? 'hi' : 'en';
+                    if (qOrigLang === language || translationsRef.current[qObj.id]?.[language]) continue;
+
+                    if (firstNeedTran) setIsTranslating(true);
+                    firstNeedTran = false;
+
+                    try {
+                        // Fetch sequentially to prevent rate limits causing partial translations
+                        const text = await translateText(qObj.text, language);
+                        const optA = await translateText(qObj.option_a, language);
+                        const optB = await translateText(qObj.option_b, language);
+                        const optC = await translateText(qObj.option_c, language);
+                        const optD = await translateText(qObj.option_d, language);
+                        const expl = await translateText(qObj.explanation, language);
+                        if (isActive) {
+                            setTranslations(prev => ({
+                                ...prev,
+                                [qObj.id]: {
+                                    ...prev[qObj.id],
+                                    [language]: { text, option_a: optA, option_b: optB, option_c: optC, option_d: optD, explanation: expl }
+                                }
+                            }));
+                        }
+                    } catch (e) { }
+                    await new Promise(r => setTimeout(r, 100)); // slight pause to prevent blocking
+                }
+                if (isActive) setIsTranslating(false);
+            };
+            runTranslationTasks();
+            return () => { isActive = false; };
+        }
+    }, [language, mistakes]);
 
     const fetchMistakes = async () => {
         try {
@@ -37,7 +109,7 @@ const MistakeBook = () => {
             // if (res.data.isCorrect) {
             //     // Update local status
             //     setMistakes(prev => prev.map(m => m.id === retryMistake.id ? { ...m, status: 'improved' } : m));
-                
+
             // }
             if (res.data.isCorrect) {
                 // Update local status
@@ -79,12 +151,35 @@ const MistakeBook = () => {
         </div>
     );
 
+    let displayRetryQ = null;
+    if (retryMistake?.Question) {
+        const q = retryMistake.Question;
+        const origLang = /[\u0900-\u097F]/.test(q.text || '') ? 'hi' : 'en';
+        displayRetryQ = (origLang !== language && translations[q.id]?.[language])
+            ? { ...q, ...translations[q.id][language] }
+            : q;
+    }
+
     return (
         <div className="space-y-8 animate-fade-in pb-20">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-slate-800">Mistake Book</h1>
-                <p className="text-slate-500 font-medium">Focus on your weak areas and turn mistakes into mastery.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">Mistake Book</h1>
+                    <p className="text-slate-500 font-medium">Focus on your weak areas and turn mistakes into mastery.</p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    {/* Language Toggle */}
+                    <button
+                        onClick={toggleLanguage}
+                        className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden font-bold text-sm shadow-sm transition-all hover:shadow"
+                    >
+                        <div className={`px-4 py-2 transition-colors ${language === 'en' ? 'bg-primary-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>EN</div>
+                        <div className={`px-4 py-2 transition-colors ${language === 'hi' ? 'bg-primary-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>हिंदी</div>
+                    </button>
+                    {isTranslating && <div className="w-5 h-5 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>}
+                </div>
             </div>
 
             {/* Stats */}
@@ -129,57 +224,65 @@ const MistakeBook = () => {
                             <p className="text-lg font-bold text-slate-800">No active mistakes!</p>
                             <p>You've cleared all the flags in this category. Excellent work.</p>
                         </motion.div>
-                    ) : filteredMistakes.map(mistake => (
-                        <motion.div
-                            key={mistake.id}
-                            layout
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            className="card-premium p-6 border-l-4 border-l-rose-500 group"
-                        >
-                            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                                <div className="space-y-3 flex-1">
-                                    <div className="flex flex-wrap gap-2">
-                                        {mistake.is_incorrect && <span className="px-2 py-0.5 rounded-lg bg-rose-50 text-rose-600 text-[10px] font-bold uppercase tracking-wider">Wrong Answer</span>}
-                                        {mistake.is_slow && <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold uppercase tracking-wider">Time Limit Exceeded</span>}
-                                        {mistake.is_bookmarked && <span className="px-2 py-0.5 rounded-lg bg-primary-50 text-primary-600 text-[10px] font-bold uppercase tracking-wider">Flagged</span>}
+                    ) : filteredMistakes.map(mistake => {
+                        const q = mistake.Question;
+                        const origLang = /[\u0900-\u097F]/.test(q?.text || '') ? 'hi' : 'en';
+                        const displayQ = (q && origLang !== language && translations[q.id]?.[language])
+                            ? { ...q, ...translations[q.id][language] }
+                            : q;
+
+                        return (
+                            <motion.div
+                                key={mistake.id}
+                                layout
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                className="card-premium p-6 border-l-4 border-l-rose-500 group"
+                            >
+                                <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                                    <div className="space-y-3 flex-1">
+                                        <div className="flex flex-wrap gap-2">
+                                            {mistake.is_incorrect && <span className="px-2 py-0.5 rounded-lg bg-rose-50 text-rose-600 text-[10px] font-bold uppercase tracking-wider">Wrong Answer</span>}
+                                            {mistake.is_slow && <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold uppercase tracking-wider">Time Limit Exceeded</span>}
+                                            {mistake.is_bookmarked && <span className="px-2 py-0.5 rounded-lg bg-primary-50 text-primary-600 text-[10px] font-bold uppercase tracking-wider">Flagged</span>}
+                                        </div>
+                                        <h3 className="text-lg font-bold text-slate-800 leading-relaxed">{displayQ?.text || 'Deleted Question'}</h3>
+                                        <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
+                                            <div className="flex items-center gap-1">
+                                                <span className="material-symbols-rounded text-sm">quiz</span>
+                                                {mistake.Test?.title || 'Unknown Test'}
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <span className="material-symbols-rounded text-sm">label</span>
+                                                {mistake.Question?.topic || 'N/A'}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-800 leading-relaxed">{mistake.Question?.text || 'Deleted Question'}</h3>
-                                    <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
-                                        <div className="flex items-center gap-1">
-                                            <span className="material-symbols-rounded text-sm">quiz</span>
-                                            {mistake.Test?.title || 'Unknown Test'}
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <span className="material-symbols-rounded text-sm">label</span>
-                                            {mistake.Question?.topic || 'N/A'}
-                                        </div>
+                                    <div className="flex flex-row md:flex-col gap-2 shrink-0">
+                                        <button
+                                            onClick={() => {
+                                                setRetryMistake(mistake);
+                                                setRetryResult(null);
+                                                setSelectedAnswer('');
+                                            }}
+                                            className="btn-primary-gradient px-6 py-2 text-sm"
+                                        >
+                                            <span className="material-symbols-rounded mr-2 text-base">replay</span>
+                                            Retry Now
+                                        </button>
+                                        <button
+                                            onClick={() => handleMarkRevised(mistake.id)}
+                                            className="btn-premium px-6 py-2 bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm"
+                                        >
+                                            <span className="material-symbols-rounded mr-2 text-base">check</span>
+                                            Mark Revised
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="flex flex-row md:flex-col gap-2 shrink-0">
-                                    <button
-                                        onClick={() => {
-                                            setRetryMistake(mistake);
-                                            setRetryResult(null);
-                                            setSelectedAnswer('');
-                                        }}
-                                        className="btn-primary-gradient px-6 py-2 text-sm"
-                                    >
-                                        <span className="material-symbols-rounded mr-2 text-base">replay</span>
-                                        Retry Now
-                                    </button>
-                                    <button
-                                        onClick={() => handleMarkRevised(mistake.id)}
-                                        className="btn-premium px-6 py-2 bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm"
-                                    >
-                                        <span className="material-symbols-rounded mr-2 text-base">check</span>
-                                        Mark Revised
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    ))}
+                            </motion.div>
+                        )
+                    })}
                 </AnimatePresence>
             </div>
 
@@ -209,7 +312,7 @@ const MistakeBook = () => {
                 {retryMistake && (
                     <div className="space-y-6">
                         <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                            <p className="text-lg font-bold text-slate-800 leading-relaxed">{retryMistake.Question?.text || 'Deleted Question'}</p>
+                            <p className="text-lg font-bold text-slate-800 leading-relaxed">{displayRetryQ?.text || 'Deleted Question'}</p>
                         </div>
 
                         {!retryResult ? (
@@ -228,7 +331,7 @@ const MistakeBook = () => {
                                             {opt}
                                         </div>
                                         <span className={`font-semibold ${selectedAnswer === opt ? 'text-primary-900' : 'text-slate-700'}`}>
-                                            {retryMistake.Question?.[`option_${opt.toLowerCase()}`] || 'N/A'}
+                                            {displayRetryQ?.[`option_${opt.toLowerCase()}`] || 'N/A'}
                                         </span>
                                     </button>
                                 ))}
@@ -252,7 +355,7 @@ const MistakeBook = () => {
                                     <p className="text-sm font-bold text-slate-500 uppercase tracking-widest ml-1">Learning Insight</p>
                                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                                         <p className="text-slate-700 leading-relaxed font-medium">
-                                            {retryMistake.Question?.explanation || 'The correct answer is Option ' + retryMistake.Question?.correct_option + '.'}
+                                            {displayRetryQ?.explanation || 'The correct answer is Option ' + retryMistake.Question?.correct_option + '.'}
                                         </p>
                                     </div>
                                 </div>
