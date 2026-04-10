@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = ({ toggleSidebar, user }) => {
     return (
@@ -20,6 +21,20 @@ const Navbar = ({ toggleSidebar, user }) => {
 
                 {/* Right Side: Actions */}
                 <div className="flex items-center gap-2 lg:gap-4">
+                    {user?.role === 'student' && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-amber-100/50 rounded-xl border border-amber-200 mr-2 shadow-sm">
+                            <span className="material-symbols-rounded text-amber-600 text-xl leading-none">stars</span>
+                            <motion.div 
+                                key={user?.total_xp}
+                                initial={{ y: -5, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                className="text-base font-bold text-slate-900 tabular-nums leading-none"
+                            >
+                                {user?.total_xp || 0}
+                            </motion.div>
+                        </div>
+                    )}
+
                     <button className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors relative">
                         <span className="material-symbols-rounded">notifications</span>
                         <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary-500 rounded-full border-2 border-white"></span>

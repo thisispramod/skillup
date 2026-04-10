@@ -1,12 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useContext } from 'react';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api';
+import { AuthContext } from '../../context/AuthContext';
+import Swal from 'sweetalert2';
 
 const MockTestResult = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(true);
+    const location = useLocation();
+    const { updateXP } = useContext(AuthContext);
 
     useEffect(() => {
         const fetchResult = async () => {
@@ -22,6 +26,16 @@ const MockTestResult = () => {
         };
         fetchResult();
     }, [id, navigate]);
+
+    useEffect(() => {
+        if (location.state?.xpResult && result) {
+            const xp = location.state.xpResult;
+            if (xp.awarded && xp.awarded > 0) {
+                if (updateXP) updateXP(xp.totalXP);
+                window.history.replaceState({}, document.title);
+            }
+        }
+    }, [location.state, result]);
 
     if (loading) return (
         <div className="flex justify-center flex-col gap-4 items-center h-screen bg-slate-50">
