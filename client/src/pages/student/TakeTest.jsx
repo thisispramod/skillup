@@ -251,7 +251,7 @@ const TakeTest = () => {
                 timer: 2000,
                 showConfirmButton: false
             });
-            navigate(`/student/result/${res.data.attempt_id}`, { state: { xpResult: res.data.xpResult } });
+            navigate(`/student/result/${res.data.attempt_id}`);
         } catch (err) {
             Swal.fire('Error', 'Failed to submit test. Please check your connection.', 'error');
             setSubmitting(false);

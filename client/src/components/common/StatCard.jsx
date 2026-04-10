@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-const StatCard = ({ title, value, icon, trend, subValue, color = 'primary' }) => {
+const StatCard = ({ title, value, icon, trend, color = 'primary' }) => {
     const colors = {
         primary: 'bg-primary-50 text-primary-600',
         success: 'bg-emerald-50 text-emerald-600',
@@ -30,9 +30,6 @@ const StatCard = ({ title, value, icon, trend, subValue, color = 'primary' }) =>
                         </span>
                     )}
                 </div>
-                {subValue && (
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{subValue}</p>
-                )}
             </div>
         </motion.div>
     );

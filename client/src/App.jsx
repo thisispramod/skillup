@@ -1,7 +1,6 @@
 import React, { useContext } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthContext, AuthProvider } from './context/AuthContext';
-import { NotificationProvider } from './context/NotificationContext';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -27,7 +26,6 @@ import MockTestResult from './pages/student/MockTestResult';
 import StudentMockTestReports from './pages/student/StudentMockTestReports';
 import GenerateTest from './pages/student/GenerateTest';
 import HabitTracker from './pages/student/HabitTracker';
-import Leaderboard from './pages/student/Leaderboard';
 
 const AppContent = () => {
   const { user, logout, loading } = useContext(AuthContext);
@@ -97,7 +95,6 @@ const AppContent = () => {
             <Route path="/student/reports" element={<StudentReports />} />
             <Route path="/student/mistake-book" element={<MistakeBook />} />
             <Route path="/student/habit-tracker" element={<HabitTracker />} />
-            <Route path="/student/leaderboard" element={<Leaderboard />} />
           </>
         )}
 
@@ -110,9 +107,7 @@ const AppContent = () => {
 function App() {
   return (
     <AuthProvider>
-      <NotificationProvider>
-        <AppContent />
-      </NotificationProvider>
+      <AppContent />
     </AuthProvider>
   );
 }

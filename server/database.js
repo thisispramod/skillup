@@ -96,9 +96,6 @@ const User = sequelize.define('User', {
   email: { type: DataTypes.STRING, allowNull: false, unique: true },
   password: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.ENUM('admin', 'student'), defaultValue: 'student' },
-  total_xp: { type: DataTypes.INTEGER, defaultValue: 0 },
-  current_streak: { type: DataTypes.INTEGER, defaultValue: 0 },
-  last_active_date: { type: DataTypes.DATEONLY, allowNull: true },
   // User belongs to a specific Class and Batch
   // class_id is already added via association, but we can explicit it if we want, or rely on association methods
   // We'll rely on Sequelize associations for class_id and batch_id
@@ -228,13 +225,6 @@ const HabitLog = sequelize.define('HabitLog', {
   status: { type: DataTypes.BOOLEAN, defaultValue: false } // 0 = Not Done, 1 = Done
 });
 
-// --- XP Log Model ---
-const XPLog = sequelize.define('XPLog', {
-  amount: { type: DataTypes.INTEGER, allowNull: false },
-  reason: { type: DataTypes.STRING, allowNull: false },
-  date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
-});
-
 // --- Relationships ---
 
 User.hasMany(Test, { foreignKey: 'created_by' });
@@ -320,10 +310,6 @@ HabitLog.belongsTo(Habit, { foreignKey: 'habit_id' });
 
 User.hasMany(HabitLog, { foreignKey: 'user_id' });
 HabitLog.belongsTo(User, { foreignKey: 'user_id' });
-
-// XP Log Relationships
-User.hasMany(XPLog, { foreignKey: 'user_id', onDelete: 'CASCADE' });
-XPLog.belongsTo(User, { foreignKey: 'user_id' });
 
 
 // --- Initialization ---
@@ -457,4 +443,4 @@ const initDB = async () => {
   }
 };
 
-module.exports = { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, Habit, HabitLog, XPLog, initDB };
+module.exports = { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, Habit, HabitLog, initDB };

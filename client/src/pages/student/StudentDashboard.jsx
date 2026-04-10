@@ -35,7 +35,7 @@ const StudentDashboard = () => {
             setResults(resultsRes.data);
 
             // Calculate some local stats if not provided by API
-            const totalScore = resultsRes.data.reduce((acc, curr) => acc + curr.score, 0);
+            const totalScore = resultsRes.data.reduce((acc, curr) => acc + curr.score, 0); 
             let avg;
             if (resultsRes.data.length > 0) {
                 avg = (totalScore / resultsRes.data.length).toFixed(1);
@@ -113,10 +113,10 @@ const StudentDashboard = () => {
                     <h1 className="text-2xl font-bold text-slate-800">Student Dashboard</h1>
                     <p className="text-slate-500">Ready to sharpen your skills today?</p>
                 </div>
-                {/* <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl border border-slate-200 shadow-sm">
                     <span className="material-symbols-rounded text-primary-500">verified_user</span>
                     <span className="text-sm font-bold text-slate-700">Level 4 Learner</span>
-                </div> */}
+                </div>
             </div>
 
             {/* Stats Grid */}
