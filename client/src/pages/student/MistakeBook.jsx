@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useContext } from 'react';
 import api from '../../api';
+import { AuthContext } from '../../context/AuthContext';
 import StatCard from '../../components/common/StatCard';
 import Modal from '../../components/common/Modal';
 import Swal from 'sweetalert2';
@@ -12,6 +13,7 @@ const MistakeBook = () => {
     const [retryMistake, setRetryMistake] = useState(null);
     const [selectedAnswer, setSelectedAnswer] = useState('');
     const [retryResult, setRetryResult] = useState(null);
+    const { updateXP } = useContext(AuthContext);
 
     // Language Toggle States
     const [language, setLanguage] = useState(() => localStorage.getItem('mistakebook_language') || 'en');
@@ -114,6 +116,10 @@ const MistakeBook = () => {
             if (res.data.isCorrect) {
                 // Update local status
                 setMistakes(prev => prev.map(m => m.id === retryMistake.id ? { ...m, status: res.data.status } : m));
+
+                if (res.data.xpResult && res.data.xpResult.awarded > 0) {
+                    if (updateXP) updateXP(res.data.xpResult.totalXP);
+                }
             }
         } catch (err) {
             console.error(err);
@@ -125,7 +131,14 @@ const MistakeBook = () => {
         try {
             await api.put(`/student/mistakes/${mistakeId}/revise`);
             setMistakes(prev => prev.map(m => m.id === mistakeId ? { ...m, status: 'revised' } : m));
-            Swal.fire({ icon: 'success', title: 'Marked as Revised', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+            Swal.fire({
+                icon: 'success',
+                title: 'Marked as Revised',
+                timer: 1500,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end'
+            });
         } catch (err) { console.error(err); }
     };
 

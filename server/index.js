@@ -5,7 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, Habit, HabitLog, initDB } = require('./database');
+const { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, Habit, HabitLog, XPLog, initDB } = require('./database');
 const { Op } = require('sequelize');
 const multer = require('multer');
 const xlsx = require('xlsx');
@@ -75,6 +75,80 @@ const shuffleArray = (array) => {
     return array;
 };
 
+// --- XP SYSTEM UTILS ---
+const awardXP = async (userId, testType, correctCount) => {
+    try {
+        const user = await User.findByPk(userId);
+        if (!user) return;
+
+        let totalAwarded = 0;
+        let reasons = [];
+
+        // 1. Correct Answers XP (1 XP per correct answer)
+        if (testType === 'mistake') {
+            totalAwarded = 1;
+            reasons.push('Mistake corrected (+1 XP)');
+        } else {
+            totalAwarded = correctCount || 0;
+            if (totalAwarded > 0) {
+                reasons.push(`${totalAwarded} correct answers (+${totalAwarded} XP)`);
+            }
+        }
+
+        // 4. Daily Streak System
+        const todayStr = new Date().toISOString().split('T')[0];
+        const lastActiveStr = user.last_active_date ? user.last_active_date : null;
+        let pDate = lastActiveStr ? new Date(lastActiveStr) : null;
+        let todayDate = new Date(todayStr);
+        let diffDays = pDate ? Math.floor((todayDate - pDate) / (1000 * 60 * 60 * 24)) : null;
+
+        let currentStreak = user.current_streak || 0;
+
+        if (diffDays === 1) {
+            currentStreak += 1; // Continued streak
+        } else if (diffDays === 0) {
+            // Already active today, streak stays same
+        } else {
+            currentStreak = 1; // Reset or started streak
+        }
+
+        if (diffDays !== 0) { // First attempt of the day
+            if (currentStreak === 3) {
+                totalAwarded += 10;
+                reasons.push('3-Day Streak Bonus (+10)');
+            } else if (currentStreak === 7) {
+                totalAwarded += 25;
+                reasons.push('7-Day Streak Bonus (+25)');
+            } else if (currentStreak === 15) {
+                totalAwarded += 50;
+                reasons.push('15-Day Streak Bonus (+50)');
+            }
+            
+            user.last_active_date = todayStr;
+            user.current_streak = currentStreak;
+        }
+
+        // Save XP Log
+        if (totalAwarded > 0) {
+            await XPLog.create({
+                user_id: user.id,
+                amount: totalAwarded,
+                reason: reasons.join(', ')
+            });
+            user.total_xp = (user.total_xp || 0) + totalAwarded;
+            await user.save();
+        }
+        
+        return {
+            awarded: totalAwarded,
+            reasons: reasons,
+            totalXP: user.total_xp
+        };
+    } catch (error) {
+        console.error('Error awarding XP:', error.message);
+    }
+};
+
 // --- AUTH ROUTES ---
 
 app.post('/api/login', async (req, res) => {
@@ -87,7 +161,27 @@ app.post('/api/login', async (req, res) => {
         if (!validPassword) return res.status(400).json({ message: 'Invalid password' });
 
         const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, SECRET_KEY, { expiresIn: '4h' });
-        res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
+        res.json({ 
+            token, 
+            user: { 
+                id: user.id, 
+                name: user.name, 
+                role: user.role,
+                total_xp: user.total_xp,
+                current_streak: user.current_streak
+            } 
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/me', authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findByPk(req.user.id, {
+            attributes: ['id', 'name', 'email', 'role', 'class_id', 'batch_id', 'total_xp', 'current_streak']
+        });
+        res.json(user);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -703,7 +797,7 @@ app.get('/api/student/me', authenticateToken, async (req, res) => {
                 { model: Class, attributes: ['id', 'name'] },
                 { model: Batch, attributes: ['id', 'name'] }
             ],
-            attributes: ['id', 'name', 'email', 'role', 'class_id', 'batch_id']
+            attributes: ['id', 'name', 'email', 'role', 'class_id', 'batch_id', 'total_xp', 'current_streak']
         });
         res.json(user);
     } catch (err) {
@@ -714,39 +808,14 @@ app.get('/api/student/me', authenticateToken, async (req, res) => {
 // Get Overall Rank
 app.get('/api/student/rank', authenticateToken, async (req, res) => {
     try {
-        const attempts = await Attempt.findAll({
-            attributes: [
-                'user_id',
-                [sequelize.fn('SUM', sequelize.col('score')), 'totalScore'],
-                [sequelize.fn('SUM', sequelize.col('correct_answers')), 'totalCorrect'],
-                [sequelize.fn('SUM', sequelize.col('total_questions')), 'totalQs'],
-                [sequelize.fn('SUM', sequelize.col('total_time')), 'totalTime']
-            ],
-            include: [{
-                model: Test,
-                attributes: [],
-                where: { test_type: 'standard' }
-            }],
-            group: ['user_id'],
-            raw: true
+        const allStudents = await User.findAll({
+            where: { role: 'student' },
+            order: [['total_xp', 'DESC']],
+            attributes: ['id', 'total_xp']
         });
 
-        attempts.sort((a, b) => {
-            // 1. Total Score (Highest first)
-            if (parseFloat(b.totalScore) !== parseFloat(a.totalScore)) {
-                return parseFloat(b.totalScore) - parseFloat(a.totalScore);
-            }
-            // 2. Accuracy (Highest first)
-            const accA = a.totalQs > 0 ? a.totalCorrect / a.totalQs : 0;
-            const accB = b.totalQs > 0 ? b.totalCorrect / b.totalQs : 0;
-            if (accB !== accA) return accB - accA;
-
-            // 3. Time Taken (Lower is better)
-            return parseFloat(a.totalTime) - parseFloat(b.totalTime);
-        });
-
-        const index = attempts.findIndex(att => att.user_id === req.user.id);
-        const rank = index !== -1 ? `#${index + 1}` : '--';
+        const myIndex = allStudents.findIndex(s => s.id === req.user.id);
+        const rank = myIndex !== -1 ? `#${myIndex + 1}` : '--';
 
         res.json({ rank });
     } catch (err) {
@@ -1075,7 +1144,12 @@ app.post('/api/student/submit', authenticateToken, async (req, res) => {
             await Promise.all(mistakePromises);
         }
 
-        res.json({ success: true, attempt_id: attempt.id });
+        // AWARD XP
+        const testObj = await Test.findByPk(test_id);
+        const testType = testObj ? testObj.test_type : 'standard';
+        const xpResult = await awardXP(req.user.id, testType, correct);
+
+        res.json({ success: true, attempt_id: attempt.id, xpResult });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
@@ -1293,7 +1367,10 @@ app.post('/api/student/mock-tests/:id/submit', authenticateToken, async (req, re
             total_time: totalTime || 0
         });
 
-        res.json({ success: true, attempt_id: attempt.id });
+        // AWARD XP
+        const xpResult = await awardXP(req.user.id, 'mock', correct);
+
+        res.json({ success: true, attempt_id: attempt.id, xpResult });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
@@ -1582,10 +1659,12 @@ app.post('/api/student/mistakes/:id/retry', authenticateToken, async (req, res) 
         if (mistake.user_id !== req.user.id) return res.status(403).json({ message: 'Unauthorized' });
 
         const isCorrect = answer === mistake.Question.correct_option;
+        let xpResult = null;
 
         if (isCorrect) {
             mistake.consecutive_correct_retries += 1;
             mistake.status = 'improved';
+            xpResult = await awardXP(req.user.id, 'mistake', 1);
         } else {
             mistake.consecutive_correct_retries = 0;
             mistake.status = 'active';
@@ -1599,7 +1678,8 @@ app.post('/api/student/mistakes/:id/retry', authenticateToken, async (req, res) 
             isCorrect,
             correctOption: mistake.Question.correct_option,
             explanation: mistake.Question.explanation,
-            status: mistake.status
+            status: mistake.status,
+            xpResult
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1692,6 +1772,85 @@ app.get('/api/admin/mistakes/student/:studentId', authenticateToken, isAdmin, as
             order: [['updatedAt', 'DESC']]
         });
         res.json(mistakes);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- XP & LEADERBOARD ROUTES ---
+
+// Get User XP History
+app.get('/api/user/xp-history', authenticateToken, async (req, res) => {
+    try {
+        const logs = await XPLog.findAll({
+            where: { user_id: req.user.id },
+            order: [['date', 'DESC']],
+            limit: 50
+        });
+        
+        const user = await User.findByPk(req.user.id, { attributes: ['total_xp', 'current_streak'] });
+        res.json({ logs, total_xp: user.total_xp, current_streak: user.current_streak });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get Leaderboard (Global / Weekly / Monthly)
+app.get('/api/leaderboard', authenticateToken, async (req, res) => {
+    try {
+        const { type } = req.query; // 'global', 'weekly', 'monthly'
+        
+        let dateFilter = {};
+        if (type === 'weekly') {
+            const lastWeek = new Date();
+            lastWeek.setDate(lastWeek.getDate() - 7);
+            dateFilter = {  date: { [Op.gte]: lastWeek } };
+        } else if (type === 'monthly') {
+            const lastMonth = new Date();
+            lastMonth.setMonth(lastMonth.getMonth() - 1);
+            dateFilter = {  date: { [Op.gte]: lastMonth } };
+        }
+
+        let rankings = [];
+
+        if (type === 'global' || !type) {
+            // Global uses User.total_xp for efficiency
+            const users = await User.findAll({
+                where: { role: 'student', total_xp: { [Op.gt]: 0 } },
+                order: [['total_xp', 'DESC']],
+                attributes: ['id', 'name', 'total_xp']
+            });
+            rankings = users.map((u, i) => ({
+                rank: i + 1,
+                id: u.id,
+                name: u.name,
+                total_xp: u.total_xp,
+                is_me: u.id === req.user.id
+            }));
+        } else {
+            // Weekly / Monthly calculates from XPLogs
+            const logs = await XPLog.findAll({
+                where: dateFilter,
+                attributes: [
+                    'user_id',
+                    [sequelize.fn('SUM', sequelize.col('amount')), 'period_xp']
+                ],
+                include: [{ model: User, attributes: ['name'] }],
+                group: ['user_id', 'User.id'],
+                order: [[sequelize.literal('period_xp'), 'DESC']],
+                raw: true
+            });
+            
+            rankings = logs.map((l, i) => ({
+                rank: i + 1,
+                id: l.user_id,
+                name: l['User.name'],
+                total_xp: parseInt(l.period_xp),
+                is_me: l.user_id === req.user.id
+            }));
+        }
+
+        res.json(rankings);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

@@ -8,14 +8,27 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Basic restore session from localStorage (In real app, verify token with API)
-        const storedUser = localStorage.getItem('user');
-        const token = localStorage.getItem('token');
+        const initAuth = async () => {
+            const storedUser = localStorage.getItem('user');
+            const token = localStorage.getItem('token');
 
-        if (storedUser && token) {
-            setUser(JSON.parse(storedUser));
-        }
-        setLoading(false);
+            if (storedUser && token) {
+                const parsedUser = JSON.parse(storedUser);
+                setUser(parsedUser);
+                
+                // Fetch fresh data from server to sync XP/Streak
+                try {
+                    const res = await api.get('/me');
+                    setUser(res.data);
+                    localStorage.setItem('user', JSON.stringify(res.data));
+                } catch (err) {
+                    console.error("Failed to refresh user session", err);
+                    if (err.response?.status === 401) logout();
+                }
+            }
+            setLoading(false);
+        };
+        initAuth();
     }, []);
 
     const login = async (email, password) => {
@@ -36,8 +49,17 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     };
 
+    const updateXP = (newTotal) => {
+        setUser(prev => {
+            if (!prev) return null;
+            const updated = { ...prev, total_xp: newTotal };
+            localStorage.setItem('user', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
     return (
-        <AuthContext.Provider value={{ user, login, logout, loading }}>
+        <AuthContext.Provider value={{ user, login, logout, loading, updateXP }}>
             {children}
         </AuthContext.Provider>
     );

@@ -205,7 +205,7 @@ const TakeMockTest = () => {
             
             const res = await api.post(`/student/mock-tests/${test.id}/submit`, payload);
             Swal.close();
-            navigate(`/student/mock-test-result/${res.data.attempt_id}`, { replace: true });
+            navigate(`/student/mock-test-result/${res.data.attempt_id}`, { state: { xpResult: res.data.xpResult }, replace: true });
         } catch (err) {
             Swal.fire('Error', 'Failed to submit test', 'error');
         }

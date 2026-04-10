@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useEffect, useState, useRef, useContext } from 'react';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import api from '../../api';
+import { AuthContext } from '../../context/AuthContext';
 import StatCard from '../../components/common/StatCard';
 import Swal from 'sweetalert2';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +11,8 @@ const ResultReview = () => {
     const [attempt, setAttempt] = useState(null);
     const [rankings, setRankings] = useState(null);
     const [loading, setLoading] = useState(true);
+    const location = useLocation();
+    const { updateXP } = useContext(AuthContext);
 
     // Language Toggle States
     const [language, setLanguage] = useState(() => localStorage.getItem('review_language') || 'en');
@@ -105,6 +108,16 @@ const ResultReview = () => {
         };
         fetchResult();
     }, [id]);
+
+    useEffect(() => {
+        if (location.state?.xpResult && attempt) {
+            const xp = location.state.xpResult;
+            if (xp.awarded && xp.awarded > 0) {
+                if (updateXP) updateXP(xp.totalXP);
+                window.history.replaceState({}, document.title);
+            }
+        }
+    }, [location.state, attempt]);
 
     if (loading) return (
         <div className="flex items-center justify-center p-20">
