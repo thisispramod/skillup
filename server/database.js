@@ -118,7 +118,7 @@ const Test = sequelize.define('Test', {
   duration_minutes: { type: DataTypes.INTEGER, allowNull: false },
   start_time: { type: DataTypes.DATE, allowNull: true },
   end_time: { type: DataTypes.DATE, allowNull: true },
-  test_type: { type: DataTypes.ENUM('standard', 'auto'), defaultValue: 'standard' }
+  test_type: { type: DataTypes.ENUM('standard', 'auto', 'ai'), defaultValue: 'standard' }
 });
 
 const Question = sequelize.define('Question', {
@@ -235,6 +235,29 @@ const XPLog = sequelize.define('XPLog', {
   date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 });
 
+// --- AI Service Related Models ---
+
+const UserQuestionStat = sequelize.define('UserQuestionStat', {
+  topic: { type: DataTypes.STRING, allowNull: false },
+  correct_count: { type: DataTypes.INTEGER, defaultValue: 0 },
+  incorrect_count: { type: DataTypes.INTEGER, defaultValue: 0 },
+  avg_time_spent: { type: DataTypes.FLOAT, defaultValue: 0 },
+  difficulty_score: { type: DataTypes.FLOAT, defaultValue: 0.5 }, // 0 to 1
+});
+
+const AITestCache = sequelize.define('AITestCache', {
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
+  performance_data: { type: DataTypes.TEXT }, // JSON string of performance metadata
+  test_data: { type: DataTypes.TEXT, allowNull: false }, // JSON string of generated questions
+  date: { type: DataTypes.DATEONLY, defaultValue: DataTypes.NOW }
+});
+
+const AIUsageLimit = sequelize.define('AIUsageLimit', {
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
+  date: { type: DataTypes.DATEONLY, defaultValue: DataTypes.NOW },
+  count: { type: DataTypes.INTEGER, defaultValue: 0 }
+});
+
 // --- Relationships ---
 
 User.hasMany(Test, { foreignKey: 'created_by' });
@@ -324,6 +347,16 @@ HabitLog.belongsTo(User, { foreignKey: 'user_id' });
 // XP Log Relationships
 User.hasMany(XPLog, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 XPLog.belongsTo(User, { foreignKey: 'user_id' });
+
+// AI Service Relationships
+User.hasMany(UserQuestionStat, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+UserQuestionStat.belongsTo(User, { foreignKey: 'user_id' });
+
+User.hasMany(AITestCache, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+AITestCache.belongsTo(User, { foreignKey: 'user_id' });
+
+User.hasMany(AIUsageLimit, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+AIUsageLimit.belongsTo(User, { foreignKey: 'user_id' });
 
 
 // --- Initialization ---
@@ -457,4 +490,4 @@ const initDB = async () => {
   }
 };
 
-module.exports = { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, Habit, HabitLog, XPLog, initDB };
+module.exports = { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, Habit, HabitLog, XPLog, UserQuestionStat, AITestCache, AIUsageLimit, initDB };

@@ -127,6 +127,37 @@ const StudentDashboard = () => {
                 <StatCard title="Mistakes" value={userStats.mistakesCount} icon="error" color="danger" />
             </div>
 
+            {/* AI Test Section */}
+            <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gradient-to-r from-indigo-600 to-purple-700 rounded-3xl p-1 shadow-xl shadow-indigo-500/20"
+            >
+                <div className="bg-white/5 backdrop-blur-sm rounded-[22px] p-6 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
+                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+                    <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl"></div>
+                    
+                    <div className="flex items-center gap-6 relative z-10">
+                        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/30">
+                            <span className="material-symbols-rounded text-white text-4xl animate-pulse">auto_awesome</span>
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-bold text-white mb-1">AI Smart Test</h2>
+                            <p className="text-indigo-100 text-sm max-w-md">Our AI analyzes your performance to create a personalized test focusing on your weak topics and target difficulty.</p>
+                        </div>
+                    </div>
+                    <div className="relative z-10 w-full md:w-auto">
+                        <Link 
+                            to="/student/ai-generate" 
+                            className="w-full md:w-auto px-8 py-3 bg-white text-indigo-600 font-bold rounded-xl shadow-lg hover:shadow-white/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <span className="material-symbols-rounded">rocket_launch</span>
+                            Generate AI Test
+                        </Link>
+                    </div>
+                </div>
+            </motion.div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Available Tests */}
                 <div className="lg:col-span-2 space-y-4">

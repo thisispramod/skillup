@@ -28,6 +28,8 @@ import StudentMockTestReports from './pages/student/StudentMockTestReports';
 import GenerateTest from './pages/student/GenerateTest';
 import HabitTracker from './pages/student/HabitTracker';
 import Leaderboard from './pages/student/Leaderboard';
+import AIGenerateTest from './pages/student/AIGenerateTest';
+import TakeAITest from './pages/student/TakeAITest';
 
 const AppContent = () => {
   const { user, logout, loading } = useContext(AuthContext);
@@ -98,6 +100,8 @@ const AppContent = () => {
             <Route path="/student/mistake-book" element={<MistakeBook />} />
             <Route path="/student/habit-tracker" element={<HabitTracker />} />
             <Route path="/student/leaderboard" element={<Leaderboard />} />
+            <Route path="/student/ai-generate" element={<AIGenerateTest />} />
+            <Route path="/student/take-ai-test" element={<TakeAITest />} />
           </>
         )}
 

@@ -11,6 +11,8 @@ const multer = require('multer');
 const xlsx = require('xlsx');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
+const { UserQuestionStat, AITestCache, AIUsageLimit } = require('./database');
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -146,6 +148,45 @@ const awardXP = async (userId, testType, correctCount) => {
         };
     } catch (error) {
         console.error('Error awarding XP:', error.message);
+    }
+};
+
+const awardXPAI = async (userId, results) => {
+    try {
+        const user = await User.findByPk(userId);
+        if (!user) return;
+
+        let totalAwarded = 0;
+        let reasons = [];
+
+        // Easy = 1 XP, Medium = 2 XP, Hard = 3 XP
+        results.forEach(q => {
+            if (q.isCorrect) {
+                 let xp = 1;
+                 if (q.difficulty === 'medium') xp = 2;
+                 if (q.difficulty === 'hard') xp = 3;
+                 totalAwarded += xp;
+            }
+        });
+
+        if (totalAwarded > 0) {
+            reasons.push(`AI Test completion (+${totalAwarded} XP)`);
+            await XPLog.create({
+                user_id: user.id,
+                amount: totalAwarded,
+                reason: reasons.join(', ')
+            });
+            user.total_xp = (user.total_xp || 0) + totalAwarded;
+            await user.save();
+        }
+
+        return {
+            awarded: totalAwarded,
+            reasons: reasons,
+            totalXP: user.total_xp
+        };
+    } catch (error) {
+        console.error('Error awarding AI XP:', error.message);
     }
 };
 
@@ -844,10 +885,18 @@ app.get('/api/student/tests', authenticateToken, async (req, res) => {
                 }
             ],
             where: {
-                test_type: 'standard',
                 [Op.or]: [
-                    { '$Classes.id$': user.class_id },
-                    { '$Batches.id$': user.batch_id }
+                    { 
+                        test_type: 'standard',
+                        [Op.or]: [
+                            { '$Classes.id$': user.class_id },
+                            { '$Batches.id$': user.batch_id }
+                        ]
+                    },
+                    {
+                        test_type: 'ai',
+                        created_by: req.user.id
+                    }
                 ]
             },
             attributes: ['id', 'title', 'description', 'duration_minutes', 'start_time', 'end_time']
@@ -1142,12 +1191,45 @@ app.post('/api/student/submit', authenticateToken, async (req, res) => {
 
             await QuestionTime.bulkCreate(timeRecords);
             await Promise.all(mistakePromises);
+
+            // Update UserQuestionStat for AI Targeting
+            for (const q of questions) {
+                const userAns = answers[q.id];
+                const isCorrect = userAns === q.correct_option;
+                const timeSpent = timeSpentPerQuestion[q.id] || 0;
+
+                const [stat, _] = await UserQuestionStat.findOrCreate({
+                    where: { user_id: req.user.id, topic: q.topic || 'General' },
+                    defaults: { correct_count: 0, incorrect_count: 0, avg_time_spent: 0 }
+                });
+
+                if (isCorrect) stat.correct_count += 1;
+                else stat.incorrect_count += 1;
+                
+                // Update average time spent on this topic
+                const totalAttempts = stat.correct_count + stat.incorrect_count;
+                stat.avg_time_spent = ((stat.avg_time_spent * (totalAttempts - 1)) + timeSpent) / totalAttempts;
+                
+                await stat.save();
+            }
         }
 
         // AWARD XP
         const testObj = await Test.findByPk(test_id);
         const testType = testObj ? testObj.test_type : 'standard';
-        const xpResult = await awardXP(req.user.id, testType, correct);
+        
+        let xpResult;
+        if (testType === 'ai') {
+            // AI specific XP logic
+            const results = questions.map(q => ({
+                topic: q.topic,
+                difficulty: q.difficulty || 'medium', // fallback
+                isCorrect: answers[q.id] === q.correct_option
+            }));
+            xpResult = await awardXPAI(req.user.id, results);
+        } else {
+            xpResult = await awardXP(req.user.id, testType, correct);
+        }
 
         res.json({ success: true, attempt_id: attempt.id, xpResult });
     } catch (err) {
@@ -1387,6 +1469,165 @@ app.get('/api/student/mock-test-results', authenticateToken, async (req, res) =>
         });
         res.json(attempts);
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- AI TEST ROUTES ---
+
+app.get('/api/start-ai-test', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const today = new Date().toISOString().split('T')[0];
+
+        // 1. Check Daily Limit (3 tests/day)
+        const [usage, _] = await AIUsageLimit.findOrCreate({
+            where: { user_id: userId, date: today },
+            defaults: { count: 0 }
+        });
+
+        if (usage.count >= 3) {
+            return res.status(429).json({ message: 'Daily AI test generation limit reached (3/day).' });
+        }
+
+        // 2. Check for Cache (optional requirement)
+        const cached = await AITestCache.findOne({
+            where: { user_id: userId, date: today }
+        });
+
+        if (cached) {
+            return res.json({ 
+                test_id: `ai_${cached.id}`, 
+                questions: JSON.parse(cached.test_data),
+                is_cached: true 
+            });
+        }
+
+        // 3. Fetch User Performance Data
+        const stats = await UserQuestionStat.findAll({ where: { user_id: userId } });
+        let performance = {
+            user_id: userId,
+            weak_topics: [],
+            accuracy: 0,
+            difficulty: 'medium'
+        };
+
+        if (stats.length > 0) {
+            // Sort by accuracy (correct / total)
+            const sorted = stats.sort((a, b) => {
+                const accA = a.correct_count / (a.correct_count + a.incorrect_count + 1);
+                const accB = b.correct_count / (b.correct_count + b.incorrect_count + 1);
+                return accA - accB;
+            });
+            performance.weak_topics = sorted.slice(0, 3).map(s => s.topic);
+            
+            const totalCorrect = stats.reduce((acc, s) => acc + s.correct_count, 0);
+            const totalIncorrect = stats.reduce((acc, s) => acc + s.incorrect_count, 0);
+            performance.accuracy = totalCorrect / (totalCorrect + totalIncorrect || 1);
+            
+            if (performance.accuracy > 0.8) performance.difficulty = 'hard';
+            else if (performance.accuracy < 0.4) performance.difficulty = 'easy';
+        } else {
+            // Default if no stats yet
+            performance.weak_topics = ['General Knowledge', 'Math', 'Science'];
+        }
+
+        // 4. Call Go AI Service
+        try {
+            const aiResponse = await axios.post('http://localhost:8081/generate-test', performance);
+            const aiQuestions = aiResponse.data.questions;
+
+            // 5. Create PERSISTENT Test and Questions in Database
+            const newTest = await Test.create({
+                title: `AI Personalized Test - ${today}`,
+                description: `Targeting weak topics: ${performance.weak_topics.shift() || 'General'}`,
+                duration_minutes: aiQuestions.length * 2,
+                test_type: 'ai',
+                created_by: userId
+            });
+
+            const questionsToInsert = aiQuestions.map(q => {
+                const options = q.options || [];
+                const correctIdx = options.indexOf(q.answer);
+                const correctOpt = String.fromCharCode(65 + (correctIdx >= 0 ? correctIdx : 0));
+
+                return {
+                    text: q.question,
+                    option_a: options[0] || 'Option A',
+                    option_b: options[1] || 'Option B',
+                    option_c: options[2] || 'Option C',
+                    option_d: options[3] || 'Option D',
+                    correct_option: correctOpt,
+                    topic: q.topic,
+                    explanation: `AI verified answer for ${q.topic}. Difficulty: ${q.difficulty}`,
+                    test_id: newTest.id
+                };
+            });
+
+            await Question.bulkCreate(questionsToInsert);
+
+            // 6. Cache metadata and Increment usage
+            await AITestCache.create({
+                user_id: userId,
+                performance_data: JSON.stringify(performance),
+                test_data: JSON.stringify(aiQuestions), // keeping JSON for cache reference
+                date: today
+            });
+
+            usage.count += 1;
+            await usage.save();
+
+            res.json({ 
+                test_id: newTest.id, // Return real DB ID
+                questions: aiQuestions,
+                is_cached: false 
+            });
+
+        } catch (aiErr) {
+            console.error('Go Service Error:', aiErr.response?.data || aiErr.message);
+            res.status(502).json({ error: aiErr.response?.data?.error || 'AI Service currently unavailable.' });
+        }
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/ai-test/submit', authenticateToken, async (req, res) => {
+    const { questions, answers } = req.body;
+    const userId = req.user.id;
+
+    try {
+        const results = questions.map(q => {
+            const isCorrect = answers[q.question] === q.answer;
+            return {
+                topic: q.topic,
+                difficulty: q.difficulty,
+                isCorrect
+            };
+        });
+
+        // Update Stats
+        for (const res of results) {
+            const [stat, _] = await UserQuestionStat.findOrCreate({
+                where: { user_id: userId, topic: res.topic },
+                defaults: { correct_count: 0, incorrect_count: 0 }
+            });
+
+            if (res.isCorrect) stat.correct_count += 1;
+            else stat.incorrect_count += 1;
+
+            await stat.save();
+        }
+
+        // Award XP
+        const xpResult = await awardXPAI(userId, results);
+
+        res.json({ success: true, xpResult });
+
+    } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 });
