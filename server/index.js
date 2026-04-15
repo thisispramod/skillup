@@ -125,7 +125,7 @@ const awardXP = async (userId, testType, correctCount) => {
                 totalAwarded += 50;
                 reasons.push('15-Day Streak Bonus (+50)');
             }
-            
+
             user.last_active_date = todayStr;
             user.current_streak = currentStreak;
         }
@@ -140,7 +140,7 @@ const awardXP = async (userId, testType, correctCount) => {
             user.total_xp = (user.total_xp || 0) + totalAwarded;
             await user.save();
         }
-        
+
         return {
             awarded: totalAwarded,
             reasons: reasons,
@@ -162,10 +162,10 @@ const awardXPAI = async (userId, results) => {
         // Easy = 1 XP, Medium = 2 XP, Hard = 3 XP
         results.forEach(q => {
             if (q.isCorrect) {
-                 let xp = 1;
-                 if (q.difficulty === 'medium') xp = 2;
-                 if (q.difficulty === 'hard') xp = 3;
-                 totalAwarded += xp;
+                let xp = 1;
+                if (q.difficulty === 'medium') xp = 2;
+                if (q.difficulty === 'hard') xp = 3;
+                totalAwarded += xp;
             }
         });
 
@@ -202,15 +202,15 @@ app.post('/api/login', async (req, res) => {
         if (!validPassword) return res.status(400).json({ message: 'Invalid password' });
 
         const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, SECRET_KEY, { expiresIn: '4h' });
-        res.json({ 
-            token, 
-            user: { 
-                id: user.id, 
-                name: user.name, 
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
                 role: user.role,
                 total_xp: user.total_xp,
                 current_streak: user.current_streak
-            } 
+            }
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -886,7 +886,7 @@ app.get('/api/student/tests', authenticateToken, async (req, res) => {
             ],
             where: {
                 [Op.or]: [
-                    { 
+                    {
                         test_type: 'standard',
                         [Op.or]: [
                             { '$Classes.id$': user.class_id },
@@ -1205,11 +1205,11 @@ app.post('/api/student/submit', authenticateToken, async (req, res) => {
 
                 if (isCorrect) stat.correct_count += 1;
                 else stat.incorrect_count += 1;
-                
+
                 // Update average time spent on this topic
                 const totalAttempts = stat.correct_count + stat.incorrect_count;
                 stat.avg_time_spent = ((stat.avg_time_spent * (totalAttempts - 1)) + timeSpent) / totalAttempts;
-                
+
                 await stat.save();
             }
         }
@@ -1217,7 +1217,7 @@ app.post('/api/student/submit', authenticateToken, async (req, res) => {
         // AWARD XP
         const testObj = await Test.findByPk(test_id);
         const testType = testObj ? testObj.test_type : 'standard';
-        
+
         let xpResult;
         if (testType === 'ai') {
             // AI specific XP logic
@@ -1243,8 +1243,8 @@ app.get('/api/student/results', authenticateToken, async (req, res) => {
     try {
         const attempts = await Attempt.findAll({
             where: { user_id: req.user.id },
-            include: [{ 
-                model: Test, 
+            include: [{
+                model: Test,
                 attributes: ['title'],
                 where: { test_type: 'standard' }
             }],
@@ -1330,8 +1330,8 @@ app.get('/api/student/performance', authenticateToken, async (req, res) => {
     try {
         const attempts = await Attempt.findAll({
             where: { user_id: req.user.id },
-            include: [{ 
-                model: Test, 
+            include: [{
+                model: Test,
                 attributes: ['title'],
                 where: { test_type: 'standard' }
             }],
@@ -1496,10 +1496,10 @@ app.get('/api/start-ai-test', authenticateToken, async (req, res) => {
         });
 
         if (cached) {
-            return res.json({ 
-                test_id: `ai_${cached.id}`, 
+            return res.json({
+                test_id: `ai_${cached.id}`,
                 questions: JSON.parse(cached.test_data),
-                is_cached: true 
+                is_cached: true
             });
         }
 
@@ -1520,11 +1520,11 @@ app.get('/api/start-ai-test', authenticateToken, async (req, res) => {
                 return accA - accB;
             });
             performance.weak_topics = sorted.slice(0, 3).map(s => s.topic);
-            
+
             const totalCorrect = stats.reduce((acc, s) => acc + s.correct_count, 0);
             const totalIncorrect = stats.reduce((acc, s) => acc + s.incorrect_count, 0);
             performance.accuracy = totalCorrect / (totalCorrect + totalIncorrect || 1);
-            
+
             if (performance.accuracy > 0.8) performance.difficulty = 'hard';
             else if (performance.accuracy < 0.4) performance.difficulty = 'easy';
         } else {
@@ -1534,7 +1534,8 @@ app.get('/api/start-ai-test', authenticateToken, async (req, res) => {
 
         // 4. Call Go AI Service
         try {
-            const aiResponse = await axios.post('http://localhost:8081/generate-test', performance);
+            // const aiResponse = await axios.post('http://localhost:8081/generate-test', performance);
+            const aiResponse = await axios.post('https://opc.dedyn.io/ai/generate-test', performance);
             const aiQuestions = aiResponse.data.questions;
 
             // 5. Create PERSISTENT Test and Questions in Database
@@ -1577,10 +1578,10 @@ app.get('/api/start-ai-test', authenticateToken, async (req, res) => {
             usage.count += 1;
             await usage.save();
 
-            res.json({ 
+            res.json({
                 test_id: newTest.id, // Return real DB ID
                 questions: aiQuestions,
-                is_cached: false 
+                is_cached: false
             });
 
         } catch (aiErr) {
@@ -1777,7 +1778,7 @@ app.put('/api/student/habits/:id/target', authenticateToken, async (req, res) =>
         const { weekly_target } = req.body;
         const habit = await Habit.findOne({ where: { id: req.params.id, user_id: req.user.id } });
         if (!habit) return res.status(404).json({ message: 'Habit not found' });
-        
+
         habit.weekly_target = weekly_target;
         await habit.save();
         res.json(habit);
@@ -2028,7 +2029,7 @@ app.get('/api/user/xp-history', authenticateToken, async (req, res) => {
             order: [['date', 'DESC']],
             limit: 50
         });
-        
+
         const user = await User.findByPk(req.user.id, { attributes: ['total_xp', 'current_streak'] });
         res.json({ logs, total_xp: user.total_xp, current_streak: user.current_streak });
     } catch (err) {
@@ -2040,16 +2041,16 @@ app.get('/api/user/xp-history', authenticateToken, async (req, res) => {
 app.get('/api/leaderboard', authenticateToken, async (req, res) => {
     try {
         const { type } = req.query; // 'global', 'weekly', 'monthly'
-        
+
         let dateFilter = {};
         if (type === 'weekly') {
             const lastWeek = new Date();
             lastWeek.setDate(lastWeek.getDate() - 7);
-            dateFilter = {  date: { [Op.gte]: lastWeek } };
+            dateFilter = { date: { [Op.gte]: lastWeek } };
         } else if (type === 'monthly') {
             const lastMonth = new Date();
             lastMonth.setMonth(lastMonth.getMonth() - 1);
-            dateFilter = {  date: { [Op.gte]: lastMonth } };
+            dateFilter = { date: { [Op.gte]: lastMonth } };
         }
 
         let rankings = [];
@@ -2081,7 +2082,7 @@ app.get('/api/leaderboard', authenticateToken, async (req, res) => {
                 order: [[sequelize.literal('period_xp'), 'DESC']],
                 raw: true
             });
-            
+
             rankings = logs.map((l, i) => ({
                 rank: i + 1,
                 id: l.user_id,
