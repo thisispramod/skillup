@@ -954,7 +954,7 @@ app.get('/api/student/topics', authenticateToken, async (req, res) => {
 // Generate Auto Test
 app.post('/api/student/generate-test', authenticateToken, async (req, res) => {
     try {
-        const { topic, difficulty, numQs } = req.body;
+        const { topic, difficulty, numQs, timeQs } = req.body;
         const limit = parseInt(numQs) || 10;
 
         // 1. Fetch all questions for the topic from standard tests
@@ -1053,7 +1053,7 @@ app.post('/api/student/generate-test', authenticateToken, async (req, res) => {
         const newTest = await Test.create({
             title: `Auto Test: ${topic} (${difficulty})`,
             description: `Auto-generated test based on ${topic} with ${difficulty} difficulty.`,
-            duration_minutes: filtered.length * 2, // 2 mins per question avg
+            duration_minutes: parseInt(timeQs) || filtered.length * 2, // Use user choice or fallback to 2 mins per question
             test_type: 'auto',
             created_by: req.user.id // Assigning to the student conceptually
         });
@@ -1534,7 +1534,7 @@ app.get('/api/start-ai-test', authenticateToken, async (req, res) => {
 
         // 4. Call Go AI Service
         try {
-            // const aiResponse = await axios.post('http://localhost:8081/generate-test', performance);
+            //const aiResponse = await axios.post('http://localhost:8081/generate-test', performance);
             const aiResponse = await axios.post('https://opc.dedyn.io/ai/generate-test', performance);
             const aiQuestions = aiResponse.data.questions;
 
@@ -1542,7 +1542,7 @@ app.get('/api/start-ai-test', authenticateToken, async (req, res) => {
             const newTest = await Test.create({
                 title: `AI Personalized Test - ${today}`,
                 description: `Targeting weak topics: ${performance.weak_topics.shift() || 'General'}`,
-                duration_minutes: aiQuestions.length * 2,
+                duration_minutes: aiQuestions.length * 1,
                 test_type: 'ai',
                 created_by: userId
             });

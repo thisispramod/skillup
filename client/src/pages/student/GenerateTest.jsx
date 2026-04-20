@@ -7,11 +7,12 @@ const GenerateTest = () => {
     const [loadingTopics, setLoadingTopics] = useState(true);
     const [error, setError] = useState('');
     const [generating, setGenerating] = useState(false);
-    
+
     const [formData, setFormData] = useState({
         topic: '',
         difficulty: 'medium',
-        numQs: 10
+        numQs: 10,
+        timeQs: 10
     });
 
     const navigate = useNavigate();
@@ -51,8 +52,8 @@ const GenerateTest = () => {
             const res = await api.post('/student/generate-test', formData);
             const { test_id } = res.data;
             if (test_id) {
-                 // Navigate to the test taking page
-                 navigate(`/student/test/${test_id}`);
+                // Navigate to the test taking page
+                navigate(`/student/test/${test_id}`);
             }
         } catch (err) {
             setError(err.response?.data?.message || err.response?.data?.error || 'Failed to generate test. Please try again.');
@@ -63,7 +64,7 @@ const GenerateTest = () => {
 
     if (loadingTopics) {
         return (
-             <div className="flex justify-center items-center h-64">
+            <div className="flex justify-center items-center h-64">
                 <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
             </div>
         );
@@ -94,7 +95,7 @@ const GenerateTest = () => {
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        
+
                         {/* Topic Selection */}
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-2">Select Topic</label>
@@ -120,10 +121,10 @@ const GenerateTest = () => {
                             <div className="grid grid-cols-3 gap-4">
                                 {['easy', 'medium', 'hard'].map((level) => (
                                     <label key={level} className="relative cursor-pointer">
-                                        <input 
-                                            type="radio" 
-                                            name="difficulty" 
-                                            value={level} 
+                                        <input
+                                            type="radio"
+                                            name="difficulty"
+                                            value={level}
                                             checked={formData.difficulty === level}
                                             onChange={handleChange}
                                             className="sr-only peer"
@@ -171,6 +172,31 @@ const GenerateTest = () => {
                                 <span>20</span>
                                 <span>25</span>
                                 <span>30</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center justify-between">
+                                <span>Times Minutes </span>
+                                <span className="text-primary-600 font-bold bg-primary-50 px-3 py-1 rounded-full text-xs">
+                                    {formData.timeQs} Minutes
+                                </span>
+                            </label>
+                            <input
+                                type="range"
+                                name="timeQs"
+                                min="5"
+                                max="60"
+                                step="2"
+                                value={formData.timeQs}
+                                onChange={handleChange}
+                                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                            />
+                            <div className="flex justify-between mt-2 text-xs text-slate-400 font-medium px-1">
+                                <span>5m</span>
+                                <span>15m</span>
+                                <span>30m</span>
+                                <span>45m</span>
+                                <span>60m</span>
                             </div>
                         </div>
 
