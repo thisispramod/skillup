@@ -143,7 +143,12 @@ const Attempt = sequelize.define('Attempt', {
   // Snapshot for historical reporting
   class_id: { type: DataTypes.INTEGER },
   batch_id: { type: DataTypes.INTEGER },
-  total_time: { type: DataTypes.INTEGER, defaultValue: 0 } // Total time in seconds
+  total_time: { type: DataTypes.INTEGER, defaultValue: 0 }, // Total time in seconds
+  status: { type: DataTypes.ENUM('IN_PROGRESS', 'PAUSED', 'SUBMITTED', 'EXPIRED'), defaultValue: 'SUBMITTED' },
+  time_left: { type: DataTypes.INTEGER, allowNull: true },
+  last_saved_question_index: { type: DataTypes.INTEGER, defaultValue: 0 },
+  time_spent_json: { type: DataTypes.TEXT },
+  marked_review_json: { type: DataTypes.TEXT }
 });
 
 // --- Mock Test Models ---
@@ -194,6 +199,10 @@ const MockTestAttempt = sequelize.define('MockTestAttempt', {
   total_time: { type: DataTypes.INTEGER, defaultValue: 0 }, // seconds
   completed_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   answers_json: { type: DataTypes.TEXT }, // JSON: { qId: { ans: 'A', time: 10, markedReview: false } }
+  status: { type: DataTypes.ENUM('IN_PROGRESS', 'PAUSED', 'SUBMITTED', 'EXPIRED'), defaultValue: 'SUBMITTED' },
+  time_left: { type: DataTypes.INTEGER, allowNull: true },
+  last_saved_question_index: { type: DataTypes.INTEGER, defaultValue: 0 },
+  marked_review_json: { type: DataTypes.TEXT }
 });
 
 const QuestionTime = sequelize.define('QuestionTime', {

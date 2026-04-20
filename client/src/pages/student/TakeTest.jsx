@@ -142,26 +142,76 @@ const TakeTest = () => {
                 const res = await api.get(`/student/test/${id}/questions`);
                 setTest(res.data);
                 setQuestions(res.data.Questions || []);
-                const savedTimeLeft = localStorage.getItem(`test_timer_${id}`);
-                setTimeLeft(savedTimeLeft ? parseInt(savedTimeLeft) : res.data.duration_minutes * 60);
+                const attempt = res.data.attempt;
+                if (attempt && attempt.status === 'IN_PROGRESS') {
+                    try {
+                        const dbAnswers = JSON.parse(attempt.answers_json || '{}');
+                        if (Object.keys(dbAnswers).length > 0) setAnswers(dbAnswers);
+                        
+                        const dbTimeSpent = JSON.parse(attempt.time_spent_json || '{}');
+                        if (Object.keys(dbTimeSpent).length > 0) setTimeSpent(dbTimeSpent);
+
+                        const dbMarked = JSON.parse(attempt.marked_review_json || '{}');
+                        if (Object.keys(dbMarked).length > 0) setMarkedForReview(dbMarked);
+                    } catch(e) {}
+                    setCurrentQ(attempt.last_saved_question_index || 0);
+                    setTimeLeft(attempt.time_left);
+                } else {
+                    const savedTimeLeft = localStorage.getItem(`test_timer_${id}`);
+                    setTimeLeft(savedTimeLeft ? parseInt(savedTimeLeft) : res.data.duration_minutes * 60);
+                }
                 setLoading(false);
             } catch (err) {
                 Swal.fire('Error', 'Could not load test data', 'error');
-                navigate('/dashboard');
+                navigate('/student/dashboard');
             }
         };
         fetchTestData();
+    }, [id, navigate]);
 
+    const answersRefForUnload = useRef(answers);
+    const markedForReviewRefForUnload = useRef(markedForReview);
+    const timeLeftRefForUnload = useRef(timeLeft);
+
+    useEffect(() => { answersRefForUnload.current = answers; }, [answers]);
+    useEffect(() => { markedForReviewRefForUnload.current = markedForReview; }, [markedForReview]);
+    useEffect(() => { timeLeftRefForUnload.current = timeLeft; }, [timeLeft]);
+
+    useEffect(() => {
         const preventRefresh = (e) => {
             e.preventDefault();
             e.returnValue = '';
         };
+
+        const handleBeforeUnload = (e) => {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            if (token) {
+                fetch(`${api.defaults.baseURL || 'http://localhost:5005/api'}/student/test/${id}/pause`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({
+                        answers: answersRefForUnload.current,
+                        timeSpentPerQuestion: timeSpentRef.current,
+                        markedForReview: markedForReviewRefForUnload.current,
+                        timeLeft: timeLeftRefForUnload.current,
+                        currentQ: currentQRef.current
+                    }),
+                    keepalive: true
+                }).catch(() => {});
+            }
+        };
+
         window.addEventListener('beforeunload', preventRefresh);
-        return () => window.removeEventListener('beforeunload', preventRefresh);
-    }, [id, navigate]);
+        window.addEventListener('unload', handleBeforeUnload);
+        
+        return () => {
+            window.removeEventListener('beforeunload', preventRefresh);
+            window.removeEventListener('unload', handleBeforeUnload);
+        };
+    }, [id]);
 
     useEffect(() => {
-        if (!loading && timeLeft > 0 && !submitting) {
+        if (!loading && !submitting && timeLeft > 0) {
             timerRef.current = setInterval(() => {
                 setTimeLeft(prev => {
                     const newTime = prev - 1;
@@ -174,9 +224,8 @@ const TakeTest = () => {
                     return newTime;
                 });
                 setTimeSpent(prev => {
-                    const q = questionsRef.current[currentQRef.current];
-                    if (!q) return prev;
-                    const qId = q.id;
+                    const qId = questionsRef.current[currentQRef.current]?.id;
+                    if (!qId) return prev;
                     const newTimeSpent = { ...prev, [qId]: (prev[qId] || 0) + 1 };
                     localStorage.setItem(`test_timeSpent_${id}`, JSON.stringify(newTimeSpent));
                     return newTimeSpent;
@@ -184,7 +233,7 @@ const TakeTest = () => {
             }, 1000);
             return () => clearInterval(timerRef.current);
         }
-    }, [loading, timeLeft, submitting, id]);
+    }, [loading, submitting, id]);
 
     useEffect(() => {
         if (Object.keys(answers).length > 0) {
@@ -211,6 +260,46 @@ const TakeTest = () => {
             ...prev,
             [qId]: !prev[qId]
         }));
+    };
+
+    const handlePause = async () => {
+        const result = await Swal.fire({
+            title: 'Pause Exam?',
+            text: "Your progress will be saved. You can resume later from 'Ongoing Tests'.",
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Pause',
+            customClass: {
+                confirmButton: 'btn-primary-gradient',
+                popup: 'rounded-3xl'
+            }
+        });
+        if (!result.isConfirmed) return;
+
+        setSubmitting(true);
+        if (timerRef.current) clearInterval(timerRef.current);
+
+        try {
+            await api.post(`/student/test/${id}/pause`, {
+                answers,
+                timeSpentPerQuestion: timeSpentRef.current,
+                markedForReview,
+                timeLeft,
+                currentQ
+            });
+
+            localStorage.removeItem(`test_answers_${id}`);
+            localStorage.removeItem(`test_timer_${id}`);
+            localStorage.removeItem(`test_marked_${id}`);
+            localStorage.removeItem(`test_timeSpent_${id}`);
+
+            await Swal.fire({icon:'success', title:'Paused', text:'Test progress saved.', timer: 1500, showConfirmButton: false});
+            navigate('/student/ongoing-tests');
+        } catch (err) {
+            Swal.fire('Error', 'Failed to pause test.', 'error');
+            setSubmitting(false);
+            if (timerRef.current) timerRef.current = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+        }
     };
 
     const submitTest = async (isAuto = false) => {
@@ -334,6 +423,12 @@ const TakeTest = () => {
                         title="Question Navigator"
                     >
                         <span className="material-symbols-rounded">grid_view</span>
+                    </button>
+                    <button
+                        onClick={handlePause}
+                        className="hidden sm:block btn-premium px-6 py-2.5 bg-amber-500 text-white hover:bg-amber-600"
+                    >
+                        Pause Test
                     </button>
                     <button
                         onClick={() => submitTest(false)}
@@ -574,8 +669,14 @@ const TakeTest = () => {
                             </div>
 
                             <button
+                                onClick={handlePause}
+                                className="w-full mt-4 btn-premium py-4 bg-amber-500 text-white hover:bg-amber-600 shadow-xl"
+                            >
+                                Pause Exam
+                            </button>
+                            <button
                                 onClick={() => submitTest(false)}
-                                className="w-full mt-8 btn-premium py-4 bg-slate-900 text-white hover:bg-slate-800 shadow-xl"
+                                className="w-full mt-4 btn-premium py-4 bg-slate-900 text-white hover:bg-slate-800 shadow-xl"
                             >
                                 Finish Exam
                             </button>

@@ -184,9 +184,9 @@ const GenerateTest = () => {
                             <input
                                 type="range"
                                 name="timeQs"
-                                min="2"
+                                min="5"
                                 max="60"
-                                step="2"
+                                step="1"
                                 value={formData.timeQs}
                                 onChange={handleChange}
                                 className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-600"

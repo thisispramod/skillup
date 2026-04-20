@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
 import Swal from 'sweetalert2';
@@ -27,25 +27,54 @@ const TakeMockTest = () => {
                 setTest(testData);
                 setTimeLeft(testData.duration_minutes * 60);
                 
-                // Initialize answers state
-                const initAnswers = {};
+                let initAnswers = {};
                 let firstSecId = null;
                 let firstQId = null;
-                
                 const sortedSections = [...(testData.MockTestSections || [])].sort((a, b) => a.order_index - b.order_index);
-                
-                sortedSections.forEach((sec) => {
-                    sec.MockTestQuestions?.forEach((q) => {
-                        initAnswers[q.id] = { ans: null, status: 'notVisited' };
-                        // Find first available question and its section
-                        if (!firstQId) {
-                            firstQId = q.id;
+
+                const attempt = testData.attempt;
+
+                if (attempt && attempt.status === 'IN_PROGRESS') {
+                    try {
+                        const dbAnswers = JSON.parse(attempt.answers_json || '{}');
+                        if (Object.keys(dbAnswers).length > 0) initAnswers = dbAnswers;
+                    } catch(e) {}
+                    setTimeLeft(attempt.time_left);
+
+                    firstQId = attempt.last_saved_question_index; 
+                    if (!firstQId && sortedSections.length > 0 && sortedSections[0].MockTestQuestions?.length > 0) {
+                        firstQId = sortedSections[0].MockTestQuestions[0].id;
+                        firstSecId = sortedSections[0].id;
+                    } else if (firstQId) {
+                        sortedSections.forEach(sec => {
+                            if (sec.MockTestQuestions?.some(q => q.id === firstQId)) {
+                                firstSecId = sec.id;
+                            }
+                        });
+                    }
+                } else {
+                    setTimeLeft(testData.duration_minutes * 60);
+                }
+
+                if (Object.keys(initAnswers).length === 0) {
+                    sortedSections.forEach((sec) => {
+                        sec.MockTestQuestions?.forEach((q) => {
+                            initAnswers[q.id] = { ans: null, status: 'notVisited' };
+                            if (!firstQId) {
+                                firstQId = q.id;
+                                firstSecId = sec.id;
+                            }
+                        });
+                    });
+                } else if (!firstQId && Object.keys(initAnswers).length > 0) {
+                    firstQId = parseInt(Object.keys(initAnswers)[0]); 
+                    sortedSections.forEach(sec => {
+                        if (sec.MockTestQuestions?.some(q => q.id === firstQId)) {
                             firstSecId = sec.id;
                         }
                     });
-                });
+                }
                 
-                // Fallback to first section if no questions at all
                 if (!firstSecId && sortedSections.length > 0) {
                     firstSecId = sortedSections[0].id;
                 }
@@ -54,7 +83,9 @@ const TakeMockTest = () => {
                 setActiveSectionId(firstSecId);
                 setActiveQuestionId(firstQId);
                 
-                if (firstQId) {
+                if (firstQId && !initAnswers[firstQId]) {
+                    setAnswers(prev => ({...prev, [firstQId]: { ans: null, status: 'notAnswered' }}));
+                } else if (firstQId && initAnswers[firstQId]?.status === 'notVisited') {
                     setAnswers(prev => ({...prev, [firstQId]: { ...prev[firstQId], status: 'notAnswered' }}));
                 }
                 
@@ -68,14 +99,54 @@ const TakeMockTest = () => {
         fetchTest();
     }, [id, navigate]);
 
+    const answersRefForUnload = useRef(answers);
+    const timeLeftRefForUnload = useRef(timeLeft);
+    const activeQuestionIdRefForUnload = useRef(activeQuestionId);
+
+    useEffect(() => { answersRefForUnload.current = answers; }, [answers]);
+    useEffect(() => { timeLeftRefForUnload.current = timeLeft; }, [timeLeft]);
+    useEffect(() => { activeQuestionIdRefForUnload.current = activeQuestionId; }, [activeQuestionId]);
+
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            if (token) {
+                fetch(`${api.defaults.baseURL || 'http://localhost:5005/api'}/student/mock-tests/${id}/pause`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({
+                        answers: answersRefForUnload.current,
+                        timeLeft: timeLeftRefForUnload.current,
+                        currentQ: activeQuestionIdRefForUnload.current
+                    }),
+                    keepalive: true
+                }).catch(() => {});
+            }
+        };
+
+        window.addEventListener('unload', handleBeforeUnload);
+        return () => window.removeEventListener('unload', handleBeforeUnload);
+
+    }, [id]);
+
+    const timerRef = useRef(null);
+
     useEffect(() => {
         if (!loading && timeLeft > 0) {
-            const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-            return () => clearInterval(timer);
-        } else if (!loading && timeLeft === 0) {
-            handleSubmit(true);
+            timerRef.current = setInterval(() => {
+                setTimeLeft(prev => {
+                    const nextTime = prev - 1;
+                    if (nextTime <= 0) {
+                        clearInterval(timerRef.current);
+                        handleSubmit(true);
+                        return 0;
+                    }
+                    return nextTime;
+                });
+            }, 1000);
+            return () => clearInterval(timerRef.current);
         }
-    }, [loading, timeLeft]);
+    }, [loading]);
 
     const recordTime = useCallback(() => {
         if (!activeQuestionId) return;
@@ -175,6 +246,34 @@ const TakeMockTest = () => {
                     timer: 3000
                 });
             }
+        }
+    };
+
+    const handlePause = async () => {
+        const result = await Swal.fire({
+            title: 'Pause Exam?',
+            text: "Your progress will be saved. You can resume later from 'Ongoing Tests'.",
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Pause',
+            customClass: {
+                confirmButton: 'btn-primary-gradient',
+                popup: 'rounded-3xl'
+            }
+        });
+        if (!result.isConfirmed) return;
+
+        recordTime();
+        try {
+            await api.post(`/student/mock-tests/${test.id}/pause`, {
+                answers,
+                timeLeft,
+                currentQ: activeQuestionId
+            });
+            await Swal.fire({icon:'success', title:'Paused', text:'Mock Test progress saved.', timer: 1500, showConfirmButton: false});
+            navigate('/student/ongoing-tests');
+        } catch (err) {
+            Swal.fire('Error', 'Failed to pause test.', 'error');
         }
     };
 
@@ -428,8 +527,13 @@ const TakeMockTest = () => {
                         </div>
                     </div>
 
-                    {/* Submit Area */}
-                    <div className="bg-white p-4 border-t border-slate-200">
+                    <div className="bg-white p-4 border-t border-slate-200 space-y-3">
+                        <button 
+                            onClick={handlePause}
+                            className="w-full py-3 bg-amber-500 hover:bg-amber-600 border border-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-500/30 transition-all active:scale-[0.98]"
+                        >
+                            Pause Test
+                        </button>
                         <button 
                             onClick={() => handleSubmit(false)}
                             className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 border border-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/30 transition-all active:scale-[0.98]"

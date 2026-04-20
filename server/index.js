@@ -920,12 +920,81 @@ app.get('/api/student/test/:id/questions', authenticateToken, async (req, res) =
         // Check timing logic here if needed (e.g., is it too early/late?)
 
         if (!test) return res.status(404).json({ message: 'Test not found' });
+
+        // Retrieve existing uncompleted attempt or create a new one
+        let attempt = await Attempt.findOne({
+            where: { user_id: req.user.id, test_id: req.params.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } }
+        });
+
+        if (!attempt) {
+            // Check if already completed
+            const completed = await Attempt.findOne({ where: { user_id: req.user.id, test_id: req.params.id, status: 'SUBMITTED' }})
+            if (completed) {
+                // If the test allows multiple attempts, we could create a new one, but for now we resume.
+            }
+            
+            attempt = await Attempt.create({
+                user_id: req.user.id,
+                test_id: test.id,
+                status: 'IN_PROGRESS',
+                time_left: test.duration_minutes ? test.duration_minutes * 60 : 3600,
+                last_saved_question_index: 0,
+                answers_json: '{}',
+                time_spent_json: '{}',
+                marked_review_json: '{}',
+                class_id: req.user.class_id,
+                batch_id: req.user.batch_id,
+                total_questions: (test.Questions && test.Questions.length) || 0
+            });
+        } else if (attempt.status === 'PAUSED') {
+            await attempt.update({ status: 'IN_PROGRESS' });
+        }
+
         const testData = test.toJSON();
+        testData.attempt = attempt;
+
         if (testData.Questions && testData.Questions.length > 0) {
-            const seed = req.user.id + parseInt(req.params.id);
-            testData.Questions = shuffleArray(testData.Questions);
+            // Predictable shuffling based on test_id so resume works smoothly
+            let seed = 1;
+            const pseudoRandom = () => {
+                let x = Math.sin(seed++) * 10000;
+                return x - Math.floor(x);
+            };
+            
+            let array = testData.Questions;
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(pseudoRandom() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            testData.Questions = array;
         }
         res.json(testData);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Pause Standard Test
+app.post('/api/student/test/:id/pause', authenticateToken, async (req, res) => {
+    try {
+        const { answers, timeSpentPerQuestion, markedForReview, timeLeft, currentQ } = req.body;
+        const attempt = await Attempt.findOne({ 
+            where: { user_id: req.user.id, test_id: req.params.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } } 
+        });
+
+        if (attempt) {
+            await attempt.update({
+                answers_json: JSON.stringify(answers || {}),
+                time_spent_json: JSON.stringify(timeSpentPerQuestion || {}),
+                marked_review_json: JSON.stringify(markedForReview || {}),
+                time_left: parseInt(timeLeft),
+                last_saved_question_index: parseInt(currentQ || 0),
+                status: 'PAUSED'
+            });
+        }
+        res.json({ success: true, message: 'Test paused successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1112,18 +1181,36 @@ app.post('/api/student/submit', authenticateToken, async (req, res) => {
             totalTime = Object.values(timeSpentPerQuestion).reduce((a, b) => a + b, 0);
         }
 
-        const attempt = await Attempt.create({
-            user_id: req.user.id,
-            test_id,
-            score,
-            total_questions: totalQuestions,
-            correct_answers: correct,
-            wrong_answers: wrong,
-            answers_json: JSON.stringify(answers),
-            class_id: user.class_id,
-            batch_id: user.batch_id,
-            total_time: totalTime
+        let attempt = await Attempt.findOne({
+            where: { user_id: req.user.id, test_id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } }
         });
+
+        if (attempt) {
+            await attempt.update({
+                score,
+                total_questions: totalQuestions,
+                correct_answers: correct,
+                wrong_answers: wrong,
+                answers_json: JSON.stringify(answers),
+                total_time: totalTime,
+                status: 'SUBMITTED',
+                completed_at: new Date()
+            });
+        } else {
+            attempt = await Attempt.create({
+                user_id: req.user.id,
+                test_id,
+                score,
+                total_questions: totalQuestions,
+                correct_answers: correct,
+                wrong_answers: wrong,
+                answers_json: JSON.stringify(answers),
+                class_id: user.class_id,
+                batch_id: user.batch_id,
+                total_time: totalTime,
+                status: 'SUBMITTED'
+            });
+        }
 
         // 4. Save Time and Handle Mistakes
         // 4. Save Time and Handle Mistakes
@@ -1396,7 +1483,30 @@ app.get('/api/student/mock-tests/:id/start', authenticateToken, async (req, res)
             }]
         });
         if (!test) return res.status(404).json({ message: 'Mock Test not found' });
-        res.json(test);
+
+        let attempt = await MockTestAttempt.findOne({
+            where: { user_id: req.user.id, mock_test_id: test.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } }
+        });
+
+        if (!attempt) {
+            attempt = await MockTestAttempt.create({
+                user_id: req.user.id,
+                mock_test_id: test.id,
+                status: 'IN_PROGRESS',
+                time_left: test.duration_minutes ? test.duration_minutes * 60 : 3600,
+                last_saved_question_index: 0,
+                answers_json: '{}',
+                marked_review_json: '{}',
+                total_questions: test.total_questions || 0
+            });
+        } else if (attempt.status === 'PAUSED') {
+            await attempt.update({ status: 'IN_PROGRESS' });
+        }
+
+        const testData = test.toJSON();
+        testData.attempt = attempt;
+
+        res.json(testData);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1437,17 +1547,36 @@ app.post('/api/student/mock-tests/:id/submit', authenticateToken, async (req, re
 
         score = parseFloat(score.toFixed(2));
 
-        const attempt = await MockTestAttempt.create({
-            user_id: req.user.id,
-            mock_test_id: test.id,
-            score,
-            total_questions: totalQs,
-            correct_answers: correct,
-            wrong_answers: wrong,
-            skipped_answers: skipped,
-            answers_json: JSON.stringify(answers),
-            total_time: totalTime || 0
+        let attempt = await MockTestAttempt.findOne({
+            where: { user_id: req.user.id, mock_test_id: test.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } }
         });
+
+        if (attempt) {
+            await attempt.update({
+                score,
+                total_questions: totalQs,
+                correct_answers: correct,
+                wrong_answers: wrong,
+                skipped_answers: skipped,
+                answers_json: JSON.stringify(answers),
+                total_time: totalTime || 0,
+                status: 'SUBMITTED',
+                completed_at: new Date()
+            });
+        } else {
+            attempt = await MockTestAttempt.create({
+                user_id: req.user.id,
+                mock_test_id: test.id,
+                score,
+                total_questions: totalQs,
+                correct_answers: correct,
+                wrong_answers: wrong,
+                skipped_answers: skipped,
+                answers_json: JSON.stringify(answers),
+                total_time: totalTime || 0,
+                status: 'SUBMITTED'
+            });
+        }
 
         // AWARD XP
         const xpResult = await awardXP(req.user.id, 'mock', correct);
@@ -1455,6 +1584,68 @@ app.post('/api/student/mock-tests/:id/submit', authenticateToken, async (req, re
         res.json({ success: true, attempt_id: attempt.id, xpResult });
     } catch (err) {
         console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Pause Mock Test
+app.post('/api/student/mock-tests/:id/pause', authenticateToken, async (req, res) => {
+    try {
+        const { answers, timeLeft, currentQ } = req.body;
+        const attempt = await MockTestAttempt.findOne({ 
+            where: { user_id: req.user.id, mock_test_id: req.params.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } } 
+        });
+
+        if (attempt) {
+            await attempt.update({
+                answers_json: JSON.stringify(answers || {}),
+                time_left: parseInt(timeLeft),
+                last_saved_question_index: parseInt(currentQ || 0),
+                status: 'PAUSED'
+            });
+        }
+        res.json({ success: true, message: 'Mock Test paused successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get Ongoing Tests
+app.get('/api/student/ongoing-tests', authenticateToken, async (req, res) => {
+    try {
+        const standardAttempts = await Attempt.findAll({
+            where: { user_id: req.user.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } },
+            include: [{ model: Test, attributes: ['id', 'title', 'duration_minutes', 'test_type'] }]
+        });
+        const mockAttempts = await MockTestAttempt.findAll({
+            where: { user_id: req.user.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } },
+            include: [{ model: MockTest, attributes: ['id', 'title', 'total_questions', 'duration_minutes'] }]
+        });
+        
+        const standardOngoing = standardAttempts.map(a => {
+            const data = a.toJSON();
+            return {
+                ...data,
+                type: data.Test?.test_type || 'standard',
+                test_title: data.Test?.title,
+                duration_minutes: data.Test?.duration_minutes,
+                total_questions: data.total_questions // Use attempt level total questions
+            };
+        });
+
+        const mockOngoing = mockAttempts.map(a => {
+            const data = a.toJSON();
+            return {
+                ...data,
+                type: 'mock',
+                test_title: data.MockTest?.title,
+                duration_minutes: data.MockTest?.duration_minutes,
+                total_questions: data.total_questions || data.MockTest?.total_questions
+            };
+        });
+
+        res.json([...standardOngoing, ...mockOngoing].sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
