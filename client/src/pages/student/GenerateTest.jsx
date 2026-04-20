@@ -184,7 +184,7 @@ const GenerateTest = () => {
                             <input
                                 type="range"
                                 name="timeQs"
-                                min="5"
+                                min="2"
                                 max="60"
                                 step="2"
                                 value={formData.timeQs}
