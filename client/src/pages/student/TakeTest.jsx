@@ -162,7 +162,20 @@ const TakeTest = () => {
                 }
                 setLoading(false);
             } catch (err) {
-                Swal.fire('Error', 'Could not load test data', 'error');
+                const msg = err.response?.data?.message || 'Could not load test data';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Access Denied',
+                    text: msg,
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true,
+                    customClass: {
+                        popup: 'rounded-2xl shadow-lg border border-rose-100'
+                    }
+                });
                 navigate('/student/dashboard');
             }
         };

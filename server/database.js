@@ -118,7 +118,10 @@ const Test = sequelize.define('Test', {
   duration_minutes: { type: DataTypes.INTEGER, allowNull: false },
   start_time: { type: DataTypes.DATE, allowNull: true },
   end_time: { type: DataTypes.DATE, allowNull: true },
-  test_type: { type: DataTypes.ENUM('standard', 'auto', 'ai'), defaultValue: 'standard' }
+  test_type: { type: DataTypes.ENUM('standard', 'auto', 'ai'), defaultValue: 'standard' },
+  test_mode: { type: DataTypes.ENUM('NORMAL', 'SCHEDULED'), defaultValue: 'NORMAL' },
+  schedule_type: { type: DataTypes.ENUM('FLEXIBLE', 'STRICT'), allowNull: true },
+  max_attempt: { type: DataTypes.INTEGER, defaultValue: 1 }
 });
 
 const Question = sequelize.define('Question', {

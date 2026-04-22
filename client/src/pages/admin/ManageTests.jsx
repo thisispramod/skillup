@@ -29,14 +29,38 @@ const ManageTests = () => {
         const { value: formValues } = await Swal.fire({
             title: 'Create New Test',
             html:
-                '<div class="flex flex-col gap-4 text-left">' +
-                '<div><label class="text-sm font-semibold text-slate-600 ml-1">Test Title</label>' +
-                '<input id="swal-input1" class="w-full mt-1 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary-500/20 outline-none border-slate-200" placeholder="e.g. Mathematics Midterm"></div>' +
-                '<div><label class="text-sm font-semibold text-slate-600 ml-1">Description</label>' +
-                '<input id="swal-input3" class="w-full mt-1 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary-500/20 outline-none border-slate-200" placeholder="e.g.Any Description"></div>' +
-                '<div><label class="text-sm font-semibold text-slate-600 ml-1">Duration (minutes)</label>' +
-                '<input id="swal-input2" type="number" class="w-full mt-1 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary-500/20 outline-none border-slate-200" value="60"></div>' +
+                '<div class="flex flex-col gap-4 text-left p-2">' +
+                '  <div><label class="text-xs font-bold text-slate-500 uppercase ml-1">Basic Info</label>' +
+                '  <input id="swal-input-title" class="w-full mt-1 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary-500/20 outline-none border-slate-200" placeholder="Test Title"></div>' +
+                '  <div><input id="swal-input-desc" class="w-full mt-1 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary-500/20 outline-none border-slate-200" placeholder="Description"></div>' +
+                '  <div class="grid grid-cols-2 gap-3">' +
+                '    <div><label class="text-xs font-bold text-slate-400 ml-1">Duration (min)</label><input id="swal-input-duration" type="number" class="w-full mt-1 px-4 py-2 border rounded-xl" value="60"></div>' +
+                '    <div><label class="text-xs font-bold text-slate-400 ml-1">Max Attempts</label><input id="swal-input-attempts" type="number" class="w-full mt-1 px-4 py-2 border rounded-xl" value="1"></div>' +
+               '  </div>' +
+                '  <div class="mt-2"><label class="text-xs font-bold text-slate-500 uppercase ml-1">Scheduling</label>' +
+                '  <select id="swal-input-mode" class="w-full mt-1 px-4 py-2 border rounded-xl bg-white">' +
+                '    <option value="NORMAL">Normal Mode (Anytime)</option>' +
+                '    <option value="SCHEDULED">Scheduled Mode (Time Restricted)</option>' +
+                '  </select></div>' +
+                '  <div id="schedule-fields" style="display:none" class="space-y-4 mt-2">' +
+                '    <div class="grid grid-cols-2 gap-3">' +
+                '      <div><label class="text-xs font-bold text-slate-400 ml-1">Start Time</label><input id="swal-input-start" type="datetime-local" class="w-full mt-1 px-4 py-2 border rounded-xl"></div>' +
+                '      <div><label class="text-xs font-bold text-slate-400 ml-1">End Time</label><input id="swal-input-end" type="datetime-local" class="w-full mt-1 px-4 py-2 border rounded-xl"></div>' +
+                '    </div>' +
+                '    <div><label class="text-xs font-bold text-slate-400 ml-1">Schedule Type</label>' +
+                '    <select id="swal-input-stype" class="w-full mt-1 px-4 py-2 border rounded-xl bg-white">' +
+                '      <option value="FLEXIBLE">Flexible (Start anytime in window)</option>' +
+                '      <option value="STRICT">Strict (Fixed end time for all)</option>' +
+                '    </select></div>' +
+                '  </div>' +
                 '</div>',
+            didOpen: () => {
+                const modeSelect = document.getElementById('swal-input-mode');
+                const scheduleFields = document.getElementById('schedule-fields');
+                modeSelect.addEventListener('change', (e) => {
+                    scheduleFields.style.display = e.target.value === 'SCHEDULED' ? 'block' : 'none';
+                });
+            },
             focusConfirm: false,
             showCancelButton: true,
             confirmButtonText: 'Create Test',
@@ -45,24 +69,45 @@ const ManageTests = () => {
                 popup: 'rounded-3xl p-8'
             },
             preConfirm: () => {
-                const title = document.getElementById('swal-input1').value;
-                const duration = document.getElementById('swal-input2').value;
-                const description = document.getElementById('swal-input3').value;
+                const title = document.getElementById('swal-input-title').value;
+                const duration = document.getElementById('swal-input-duration').value;
+                const description = document.getElementById('swal-input-desc').value;
+                const test_mode = document.getElementById('swal-input-mode').value;
+                const start_time = document.getElementById('swal-input-start').value;
+                const end_time = document.getElementById('swal-input-end').value;
+                const schedule_type = document.getElementById('swal-input-stype').value;
+                const max_attempt = document.getElementById('swal-input-attempts').value;
+
                 if (!title) {
                     Swal.showValidationMessage('Title is required');
                     return false;
                 }
-                return { title, duration, description };
+                if (test_mode === 'SCHEDULED') {
+                    if (!start_time || !end_time) {
+                        Swal.showValidationMessage('Start and End times are required for Scheduled mode');
+                        return false;
+                    }
+                    if (new Date(start_time) >= new Date(end_time)) {
+                        Swal.showValidationMessage('Start time must be before End time');
+                        return false;
+                    }
+                }
+                return { 
+                    title, 
+                    duration_minutes: parseInt(duration), 
+                    description, 
+                    test_mode, 
+                    start_time: test_mode === 'SCHEDULED' ? start_time : null,
+                    end_time: test_mode === 'SCHEDULED' ? end_time : null,
+                    schedule_type: test_mode === 'SCHEDULED' ? schedule_type : null,
+                    max_attempt: parseInt(max_attempt)
+                };
             }
         });
 
         if (formValues) {
             try {
-                await api.post('/tests', {
-                    title: formValues.title,
-                    duration_minutes: parseInt(formValues.duration),
-                    description: formValues.description
-                });
+                await api.post('/tests', formValues);
                 Swal.fire({
                     icon: 'success',
                     title: 'Test Created!',
@@ -122,6 +167,14 @@ const ManageTests = () => {
             )
         },
         { header: 'Created At', key: 'createdAt', render: (row) => new Date(row.createdAt).toLocaleDateString() },
+        {
+            header: 'Mode', key: 'test_mode', render: (row) => (
+                <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${row.test_mode === 'SCHEDULED' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
+                    }`}>
+                    {row.test_mode || 'NORMAL'}
+                </span>
+            )
+        },
         {
             header: 'Status', key: 'published', render: (row) => (
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${row.published ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'

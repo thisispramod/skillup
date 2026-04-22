@@ -341,8 +341,14 @@ app.put('/api/admin/students/:id/class', authenticateToken, isAdmin, async (req,
 // Create Test (with Class Assignment)
 app.post('/api/tests', authenticateToken, isAdmin, async (req, res) => {
     try {
-        const { classIds, batchIds, ...testData } = req.body;
-        const test = await Test.create({ ...testData, created_by: req.user.id });
+        const { classIds, batchIds, test_mode, schedule_type, max_attempt, ...testData } = req.body;
+        const test = await Test.create({ 
+            ...testData, 
+            test_mode: test_mode || 'NORMAL',
+            schedule_type: schedule_type || null,
+            max_attempt: max_attempt || 1,
+            created_by: req.user.id 
+        });
 
         if (classIds && classIds.length > 0) {
             await test.setClasses(classIds);
@@ -376,11 +382,16 @@ app.get('/api/admin/tests', authenticateToken, isAdmin, async (req, res) => {
 // Update Test (with Class Assignment)
 app.put('/api/tests/:id', authenticateToken, isAdmin, async (req, res) => {
     try {
-        const { classIds, batchIds, ...testData } = req.body;
+        const { classIds, batchIds, test_mode, schedule_type, max_attempt, ...testData } = req.body;
         const test = await Test.findByPk(req.params.id);
         if (!test) return res.status(404).json({ message: 'Test not found' });
 
-        await test.update(testData);
+        await test.update({
+            ...testData,
+            test_mode: test_mode !== undefined ? test_mode : test.test_mode,
+            schedule_type: schedule_type !== undefined ? schedule_type : test.schedule_type,
+            max_attempt: max_attempt !== undefined ? max_attempt : test.max_attempt
+        });
         if (classIds) {
             await test.setClasses(classIds);
         }
@@ -899,7 +910,7 @@ app.get('/api/student/tests', authenticateToken, async (req, res) => {
                     }
                 ]
             },
-            attributes: ['id', 'title', 'description', 'duration_minutes', 'start_time', 'end_time']
+            attributes: ['id', 'title', 'description', 'duration_minutes', 'start_time', 'end_time', 'test_mode', 'schedule_type', 'max_attempt']
         });
         res.json(tests);
     } catch (err) {
@@ -921,23 +932,51 @@ app.get('/api/student/test/:id/questions', authenticateToken, async (req, res) =
 
         if (!test) return res.status(404).json({ message: 'Test not found' });
 
-        // Retrieve existing uncompleted attempt or create a new one
-        let attempt = await Attempt.findOne({
+        const now = new Date();
+
+        // 1. SCHEDULE VALIDATION
+        if (test.test_mode === 'SCHEDULED') {
+            if (test.start_time && now < new Date(test.start_time)) {
+                return res.status(403).json({ message: 'Test has not started yet' });
+            }
+            if (test.end_time && now > new Date(test.end_time)) {
+                return res.status(403).json({ message: 'Test has expired' });
+            }
+        }
+
+        // 2. ATTEMPT LIMIT CHECK
+        const previousAttempts = await Attempt.count({
+            where: { user_id: req.user.id, test_id: req.params.id, status: 'SUBMITTED' }
+        });
+
+        const activeAttempt = await Attempt.findOne({
             where: { user_id: req.user.id, test_id: req.params.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } }
         });
 
+        if (!activeAttempt && previousAttempts >= (test.max_attempt || 1)) {
+            return res.status(403).json({ message: 'Maximum attempts reached' });
+        }
+
+        // Retrieve existing uncompleted attempt or create a new one
+        let attempt = activeAttempt;
+
         if (!attempt) {
-            // Check if already completed
-            const completed = await Attempt.findOne({ where: { user_id: req.user.id, test_id: req.params.id, status: 'SUBMITTED' }})
-            if (completed) {
-                // If the test allows multiple attempts, we could create a new one, but for now we resume.
+            // Calculate Timer Logic
+            let timeToSet = test.duration_minutes * 60; // default in seconds
+
+            if (test.test_mode === 'SCHEDULED') {
+                if (test.schedule_type === 'STRICT' && test.end_time) {
+                    const diffSeconds = Math.floor((new Date(test.end_time) - now) / 1000);
+                    timeToSet = Math.min(timeToSet, diffSeconds);
+                    if (timeToSet <= 0) return res.status(403).json({ message: 'Test has expired' });
+                }
             }
-            
+
             attempt = await Attempt.create({
                 user_id: req.user.id,
                 test_id: test.id,
                 status: 'IN_PROGRESS',
-                time_left: test.duration_minutes ? test.duration_minutes * 60 : 3600,
+                time_left: timeToSet,
                 last_saved_question_index: 0,
                 answers_json: '{}',
                 time_spent_json: '{}',
@@ -947,7 +986,18 @@ app.get('/api/student/test/:id/questions', authenticateToken, async (req, res) =
                 total_questions: (test.Questions && test.Questions.length) || 0
             });
         } else if (attempt.status === 'PAUSED') {
-            await attempt.update({ status: 'IN_PROGRESS' });
+            // If STRICT mode, we must re-calculate time left based on end_time
+            if (test.test_mode === 'SCHEDULED' && test.schedule_type === 'STRICT' && test.end_time) {
+                const diffSeconds = Math.floor((new Date(test.end_time) - now) / 1000);
+                if (diffSeconds <= 0) {
+                    await attempt.update({ status: 'EXPIRED', time_left: 0 });
+                    return res.status(403).json({ message: 'Test has expired while paused' });
+                }
+                const newTimeLeft = Math.min(attempt.time_left, diffSeconds);
+                await attempt.update({ status: 'IN_PROGRESS', time_left: newTimeLeft });
+            } else {
+                await attempt.update({ status: 'IN_PROGRESS' });
+            }
         }
 
         const testData = test.toJSON();
@@ -2153,7 +2203,8 @@ app.get('/api/admin/mistakes/analytics', authenticateToken, isAdmin, async (req,
             group: ['Mistake.question_id', 'Question.id', 'Question.text', 'Question.topic'],
             order: [[sequelize.literal('count'), 'DESC']],
             limit: 10,
-            raw: true
+            raw: true,
+            nest: true
         });
 
         // 2. Weakness by Batch (Count of active mistakes per batch)
@@ -2170,11 +2221,11 @@ app.get('/api/admin/mistakes/analytics', authenticateToken, isAdmin, async (req,
                 }]
             }],
             attributes: [
-                [sequelize.col('User.batch_id'), 'batch_id'],
                 [sequelize.fn('COUNT', sequelize.col('Mistake.id')), 'mistake_count']
             ],
             group: ['User.batch_id', 'User->Batch.id', 'User->Batch.name'],
-            raw: true
+            raw: true,
+            nest: true
         });
 
         res.json({
@@ -2195,7 +2246,8 @@ app.get('/api/admin/mistakes/student/:studentId', authenticateToken, isAdmin, as
             include: [
                 {
                     model: Question,
-                    attributes: ['id', 'text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation', 'topic', 'test_id']
+                    attributes: ['id', 'text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation', 'topic', 'test_id'],
+                    required: true // Skip mistakes for questions that no longer exist
                 },
                 {
                     model: Test,

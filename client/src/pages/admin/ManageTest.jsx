@@ -205,6 +205,89 @@ const ManageTest = () => {
             e.target.value = null; // reset input
         }
     };
+    
+    const handleEditTestDetails = async () => {
+        // Format dates for datetime-local input (YYYY-MM-DDTHH:mm)
+        const formatDate = (d) => {
+            if (!d) return '';
+            const date = new Date(d);
+            const pad = (n) => n.toString().padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        };
+
+        const { value: formValues } = await Swal.fire({
+            title: 'Edit Test Details',
+            html:
+                '<div class="flex flex-col gap-4 text-left p-2">' +
+                '  <div><label class="text-xs font-bold text-slate-500 uppercase ml-1">Basic Info</label>' +
+                '  <input id="swal-edit-title" class="w-full mt-1 px-4 py-2 border rounded-xl" placeholder="Test Title" value="' + test.title + '"></div>' +
+                '  <div class="grid grid-cols-2 gap-3">' +
+                '    <div><label class="text-xs font-bold text-slate-400 ml-1">Duration (min)</label><input id="swal-edit-duration" type="number" class="w-full mt-1 px-4 py-2 border rounded-xl" value="' + test.duration_minutes + '"></div>' +
+                '    <div><label class="text-xs font-bold text-slate-400 ml-1">Max Attempts</label><input id="swal-edit-attempts" type="number" class="w-full mt-1 px-4 py-2 border rounded-xl" value="' + (test.max_attempt || 1) + '"></div>' +
+                '  </div>' +
+                '  <div class="mt-2"><label class="text-xs font-bold text-slate-500 uppercase ml-1">Scheduling</label>' +
+                '  <select id="swal-edit-mode" class="w-full mt-1 px-4 py-2 border rounded-xl bg-white">' +
+                '    <option value="NORMAL" ' + (test.test_mode === 'NORMAL' ? 'selected' : '') + '>Normal Mode (Anytime)</option>' +
+                '    <option value="SCHEDULED" ' + (test.test_mode === 'SCHEDULED' ? 'selected' : '') + '>Scheduled Mode (Time Restricted)</option>' +
+                '  </select></div>' +
+                '  <div id="edit-schedule-fields" style="display:' + (test.test_mode === 'SCHEDULED' ? 'block' : 'none') + '" class="space-y-4 mt-2">' +
+                '    <div class="grid grid-cols-2 gap-3">' +
+                '      <div><label class="text-xs font-bold text-slate-400 ml-1">Start Time</label><input id="swal-edit-start" type="datetime-local" class="w-full mt-1 px-4 py-2 border rounded-xl" value="' + formatDate(test.start_time) + '"></div>' +
+                '      <div><label class="text-xs font-bold text-slate-400 ml-1">End Time</label><input id="swal-edit-end" type="datetime-local" class="w-full mt-1 px-4 py-2 border rounded-xl" value="' + formatDate(test.end_time) + '"></div>' +
+                '    </div>' +
+                '    <div><label class="text-xs font-bold text-slate-400 ml-1">Schedule Type</label>' +
+                '    <select id="swal-edit-stype" class="w-full mt-1 px-4 py-2 border rounded-xl bg-white">' +
+                '      <option value="FLEXIBLE" ' + (test.schedule_type === 'FLEXIBLE' ? 'selected' : '') + '>Flexible (Start anytime in window)</option>' +
+                '      <option value="STRICT" ' + (test.schedule_type === 'STRICT' ? 'selected' : '') + '>Strict (Fixed end time for all)</option>' +
+                '    </select></div>' +
+                '  </div>' +
+                '</div>',
+            didOpen: () => {
+                const modeSelect = document.getElementById('swal-edit-mode');
+                const scheduleFields = document.getElementById('edit-schedule-fields');
+                modeSelect.addEventListener('change', (e) => {
+                    scheduleFields.style.display = e.target.value === 'SCHEDULED' ? 'block' : 'none';
+                });
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Save Changes',
+            preConfirm: () => {
+                const title = document.getElementById('swal-edit-title').value;
+                const duration = document.getElementById('swal-edit-duration').value;
+                const test_mode = document.getElementById('swal-edit-mode').value;
+                const start_time = document.getElementById('swal-edit-start').value;
+                const end_time = document.getElementById('swal-edit-end').value;
+                const schedule_type = document.getElementById('swal-edit-stype').value;
+                const max_attempt = document.getElementById('swal-edit-attempts').value;
+
+                if (!title) return Swal.showValidationMessage('Title is required');
+                if (test_mode === 'SCHEDULED') {
+                    if (!start_time || !end_time) return Swal.showValidationMessage('Times are required');
+                    if (new Date(start_time) >= new Date(end_time)) return Swal.showValidationMessage('Start must be before End');
+                }
+
+                return {
+                    title,
+                    duration_minutes: parseInt(duration),
+                    test_mode,
+                    start_time: test_mode === 'SCHEDULED' ? start_time : null,
+                    end_time: test_mode === 'SCHEDULED' ? end_time : null,
+                    schedule_type: test_mode === 'SCHEDULED' ? schedule_type : null,
+                    max_attempt: parseInt(max_attempt)
+                };
+            }
+        });
+
+        if (formValues) {
+            try {
+                await api.put(`/tests/${id}`, formValues);
+                setTest({ ...test, ...formValues });
+                Swal.fire({ icon: 'success', title: 'Test Updated', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+            } catch (err) {
+                Swal.fire('Error', 'Failed to update test details', 'error');
+            }
+        }
+    };
 
 
 
@@ -266,20 +349,50 @@ const ManageTest = () => {
                 {/* Left: Test Details & Assignments */}
                 <div className="lg:col-span-1 space-y-6">
                     <div className="card-premium p-6">
-                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <span className="material-symbols-rounded text-primary-500">info</span>
-                            Test Summary
-                        </h3>
+                        <div className="flex justify-between items-start mb-4">
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                <span className="material-symbols-rounded text-primary-500">info</span>
+                                Test Summary
+                            </h3>
+                            <button 
+                                onClick={() => handleEditTestDetails()}
+                                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-primary-600 transition-all"
+                                title="Edit Summary"
+                            >
+                                <span className="material-symbols-rounded text-sm">edit</span>
+                            </button>
+                        </div>
                         <div className="space-y-4">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-500">Mode</span>
+                                <span className={`font-bold transition-colors ${test.test_mode === 'SCHEDULED' ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                    {test.test_mode || 'NORMAL'}
+                                </span>
+                            </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-500">Duration</span>
                                 <span className="font-bold text-slate-800">{test.duration_minutes} Mins</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                                <span className="text-slate-500">Questions</span>
-                                <span className="font-bold text-slate-800">{questions.length} Total</span>
+                                <span className="text-slate-500">Attempts</span>
+                                <span className="font-bold text-slate-800">{test.max_attempt || 1} allowed</span>
                             </div>
-                            <div className="flex justify-between text-sm">
+                            {test.test_mode === 'SCHEDULED' && (
+                                <div className="space-y-2 mt-2 pt-2 border-t border-slate-50">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400">Schedule ({test.schedule_type})</span>
+                                        <div className="flex justify-between text-[11px] font-bold">
+                                            <span className="text-slate-500">Start:</span>
+                                            <span className="text-slate-700">{test.start_time ? new Date(test.start_time).toLocaleString() : '--'}</span>
+                                        </div>
+                                        <div className="flex justify-between text-[11px] font-bold">
+                                            <span className="text-slate-500">End:</span>
+                                            <span className="text-slate-700">{test.end_time ? new Date(test.end_time).toLocaleString() : '--'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-sm pt-2 border-t border-slate-50">
                                 <span className="text-slate-500">Status</span>
                                 <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase ${test.published ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                                     {test.published ? 'Published' : 'Draft'}

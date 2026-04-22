@@ -173,26 +173,87 @@ const StudentDashboard = () => {
                             </div>
                         ) : tests.map(test => {
                             if (!test) return null;
+                            const now = new Date();
+                            const isScheduled = test.test_mode === 'SCHEDULED';
+                            const startTime = test.start_time ? new Date(test.start_time) : null;
+                            const endTime = test.end_time ? new Date(test.end_time) : null;
+                            
+                            let status = 'ACTIVE'; // NORMAL mode is always active
+                            let statusMessage = '';
+                            let isDisabled = false;
+
+                            if (isScheduled) {
+                                if (startTime && now < startTime) {
+                                    status = 'BEFORE_START';
+                                    statusMessage = `Starts at ${startTime.toLocaleString()}`;
+                                    isDisabled = true;
+                                } else if (endTime && now > endTime) {
+                                    status = 'EXPIRED';
+                                    statusMessage = 'This test has expired';
+                                    isDisabled = true;
+                                } else {
+                                    status = 'ACTIVE';
+                                    statusMessage = endTime ? `Ends at ${endTime.toLocaleString()}` : 'Active now';
+                                }
+                            } else {
+                                statusMessage = 'Start anytime';
+                            }
+
+                            // ATTEMPT LIMIT CHECK FOR DISABLING BUTTON
+                            const hasReachedLimit = !test.has_active_attempt && 
+                                                  test.user_attempt_count >= (test.max_attempt || 1);
+                            
+                            if (hasReachedLimit) {
+                                isDisabled = true;
+                                statusMessage = `Max attempts (${test.max_attempt}) reached`;
+                            }
+
                             return (
                                 <motion.div
                                     key={test.id}
-                                    whileHover={{ scale: 1.02 }}
-                                    className="card-premium p-5 flex flex-col justify-between"
+                                    whileHover={!isDisabled ? { scale: 1.02 } : {}}
+                                    className={`card-premium p-5 flex flex-col justify-between ${isDisabled ? 'opacity-70 grayscale-[0.5]' : ''}`}
                                 >
                                     <div>
                                         <div className="flex justify-between items-start mb-3">
                                             <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center">
                                                 <span className="material-symbols-rounded">quiz</span>
                                             </div>
-                                            <span className="px-2 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold uppercase">
-                                                {test.duration_minutes} Mins
-                                            </span>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className="px-2 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold uppercase">
+                                                    {test.duration_minutes} Mins
+                                                </span>
+                                                {isScheduled && (
+                                                    <span className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase ${
+                                                        status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600' :
+                                                        status === 'BEFORE_START' ? 'bg-blue-50 text-blue-600' : 'bg-rose-50 text-rose-600'
+                                                    }`}>
+                                                        Scheduled
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                         <h3 className="font-bold text-slate-800 mb-1">{test.title}</h3>
-                                        <p className="text-xs text-slate-500 line-clamp-2 mb-4">{test.description || 'No description provided.'}</p>
+                                        <p className="text-xs text-slate-500 line-clamp-2 mb-2">{test.description || 'No description provided.'}</p>
+                                        <div className="flex items-center gap-1.5 mb-4">
+                                            <span className={`material-symbols-rounded text-sm ${hasReachedLimit ? 'text-rose-500' : (isDisabled ? 'text-slate-400' : 'text-primary-500')}`}>
+                                                {hasReachedLimit ? 'block' : (status === 'BEFORE_START' ? 'schedule' : status === 'EXPIRED' ? 'event_busy' : 'check_circle')}
+                                            </span>
+                                            <span className={`text-[11px] font-bold ${hasReachedLimit ? 'text-rose-600' : (isDisabled ? 'text-slate-400' : 'text-slate-600')}`}>
+                                                {statusMessage}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <Link to={`/student/test/${test.id}`} className="btn-primary-gradient w-full py-2 text-sm">
-                                        Start Attempt
+                                    <Link 
+                                        to={isDisabled ? '#' : `/student/test/${test.id}`} 
+                                        className={`w-full py-2.5 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${
+                                            isDisabled 
+                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                                            : 'btn-primary-gradient'
+                                        }`}
+                                        onClick={(e) => isDisabled && e.preventDefault()}
+                                    >
+                                        {hasReachedLimit ? 'Limit Reached' : (status === 'BEFORE_START' ? 'Not Started' : status === 'EXPIRED' ? 'Test Expired' : 'Start Attempt')}
                                     </Link>
                                 </motion.div>
                             );
