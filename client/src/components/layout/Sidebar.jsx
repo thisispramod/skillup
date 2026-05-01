@@ -22,6 +22,7 @@ const Sidebar = ({ isOpen, toggleSidebar, role, onLogout }) => {
         { name: 'Manage Classes', path: '/admin/classes', icon: 'school' },
         { name: 'Reports', path: '/admin/reports', icon: 'analytics' },
         { name: 'Mistake Analytics', path: '/admin/mistake-analytics', icon: 'error' },
+        { name: 'Store', path: '/admin/store', icon: 'storefront' },
     ] : [
         { name: 'Dashboard', path: '/student/dashboard', icon: 'dashboard' },
         { name: 'Habit Tracker', path: '/student/habit-tracker', icon: 'checklist' },
@@ -31,7 +32,8 @@ const Sidebar = ({ isOpen, toggleSidebar, role, onLogout }) => {
         { name: 'Mock Tests', path: '/student/mock-tests', icon: 'assignment' },
         { name: 'Ongoing Tests', path: '/student/ongoing-tests', icon: 'pause_circle' },
         { name: 'Mock Test Reports', path: '/student/mock-test-reports', icon: 'history' },
-        { name: 'Auto Gen Test', path: '/student/generate-test', icon: 'auto_awesome' }
+        { name: 'Auto Gen Test', path: '/student/generate-test', icon: 'auto_awesome' },
+        { name: 'Store', path: '/store', icon: 'storefront' }
     ];
 
     return (

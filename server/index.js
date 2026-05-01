@@ -12,7 +12,15 @@ const xlsx = require('xlsx');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { UserQuestionStat, AITestCache, AIUsageLimit } = require('./database');
+const { UserQuestionStat, AITestCache, AIUsageLimit, StoreItem, StoreOrder } = require('./database');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+const Razorpay = require('razorpay');
+
+const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_12345',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'secret12345'
+});
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -342,12 +350,12 @@ app.put('/api/admin/students/:id/class', authenticateToken, isAdmin, async (req,
 app.post('/api/tests', authenticateToken, isAdmin, async (req, res) => {
     try {
         const { classIds, batchIds, test_mode, schedule_type, max_attempt, ...testData } = req.body;
-        const test = await Test.create({ 
-            ...testData, 
+        const test = await Test.create({
+            ...testData,
             test_mode: test_mode || 'NORMAL',
             schedule_type: schedule_type || null,
             max_attempt: max_attempt || 1,
-            created_by: req.user.id 
+            created_by: req.user.id
         });
 
         if (classIds && classIds.length > 0) {
@@ -1010,7 +1018,7 @@ app.get('/api/student/test/:id/questions', authenticateToken, async (req, res) =
                 let x = Math.sin(seed++) * 10000;
                 return x - Math.floor(x);
             };
-            
+
             let array = testData.Questions;
             let currentIndex = array.length, randomIndex;
             while (currentIndex !== 0) {
@@ -1030,8 +1038,8 @@ app.get('/api/student/test/:id/questions', authenticateToken, async (req, res) =
 app.post('/api/student/test/:id/pause', authenticateToken, async (req, res) => {
     try {
         const { answers, timeSpentPerQuestion, markedForReview, timeLeft, currentQ } = req.body;
-        const attempt = await Attempt.findOne({ 
-            where: { user_id: req.user.id, test_id: req.params.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } } 
+        const attempt = await Attempt.findOne({
+            where: { user_id: req.user.id, test_id: req.params.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } }
         });
 
         if (attempt) {
@@ -1642,8 +1650,8 @@ app.post('/api/student/mock-tests/:id/submit', authenticateToken, async (req, re
 app.post('/api/student/mock-tests/:id/pause', authenticateToken, async (req, res) => {
     try {
         const { answers, timeLeft, currentQ } = req.body;
-        const attempt = await MockTestAttempt.findOne({ 
-            where: { user_id: req.user.id, mock_test_id: req.params.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } } 
+        const attempt = await MockTestAttempt.findOne({
+            where: { user_id: req.user.id, mock_test_id: req.params.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } }
         });
 
         if (attempt) {
@@ -1671,7 +1679,7 @@ app.get('/api/student/ongoing-tests', authenticateToken, async (req, res) => {
             where: { user_id: req.user.id, status: { [Op.in]: ['IN_PROGRESS', 'PAUSED'] } },
             include: [{ model: MockTest, attributes: ['id', 'title', 'total_questions', 'duration_minutes'] }]
         });
-        
+
         const standardOngoing = standardAttempts.map(a => {
             const data = a.toJSON();
             return {
@@ -1694,7 +1702,7 @@ app.get('/api/student/ongoing-tests', authenticateToken, async (req, res) => {
             };
         });
 
-        res.json([...standardOngoing, ...mockOngoing].sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
+        res.json([...standardOngoing, ...mockOngoing].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -2336,6 +2344,213 @@ app.get('/api/leaderboard', authenticateToken, async (req, res) => {
         }
 
         res.json(rankings);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- STORE SYSTEM ROUTES ---
+
+// Public Store Routes
+app.get('/api/store/items', async (req, res) => {
+    try {
+        const items = await StoreItem.findAll({
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(items);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/store/items/:id', async (req, res) => {
+    try {
+        const item = await StoreItem.findByPk(req.params.id);
+        if (!item) return res.status(404).json({ message: 'Item not found' });
+        res.json(item);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create Order (PENDING)
+app.post('/api/store/orders', async (req, res) => {
+    try {
+        const { item_id, email } = req.body;
+        const item = await StoreItem.findByPk(item_id);
+        if (!item) return res.status(404).json({ message: 'Item not found' });
+
+        // Generate a random token for download
+        const download_token = crypto.randomBytes(20).toString('hex');
+
+        // Create Razorpay Order
+        const rzpOrder = await razorpay.orders.create({
+            amount: Math.round(item.price * 100), // amount in paise
+            currency: 'INR',
+            receipt: `rcpt_${Date.now()}`
+        });
+
+        const order = await StoreOrder.create({
+            item_id,
+            email,
+            payment_status: 'PENDING',
+            payment_ref: rzpOrder.id,
+            download_token
+        });
+
+        res.status(201).json({ order, rzpOrder });
+    } catch (err) {
+        console.error("Razorpay Order Error:", err);
+        let errMsg = err.message;
+        if (err.error && err.error.description) {
+            errMsg = err.error.description;
+        }
+        res.status(500).json({ message: `Razorpay Error: ${errMsg}. Please check your API keys in .env` });
+    }
+});
+
+// Verify Payment & Send Email
+app.post('/api/store/verify', async (req, res) => {
+    try {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+        // Verify signature
+        const hmac = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'secret12345');
+        hmac.update(razorpay_order_id + "|" + razorpay_payment_id);
+        const generated_signature = hmac.digest('hex');
+
+        if (generated_signature !== razorpay_signature) {
+            return res.status(400).json({ message: 'Payment verification failed' });
+        }
+
+        const order = await StoreOrder.findOne({
+            where: { payment_ref: razorpay_order_id },
+            include: [{ model: StoreItem }]
+        });
+
+        if (!order) return res.status(404).json({ message: 'Order not found' });
+
+        order.payment_status = 'SUCCESS';
+        await order.save();
+
+        // Send Email
+        const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',  // your SMTP server
+            port: process.env.SMTP_PORT || 587,             // your SMTP port
+            secure: false, // true for 465, false for other ports
+            auth: {
+                user: process.env.SMTP_USER || 'itspramod19@gmail.com',  // your email
+                pass: process.env.SMTP_PASS || 'pfowtxiogpfsoipt'
+            },
+            tls: { rejectUnauthorized: false } // important for self-signed or some SMTP
+        });
+
+        try {
+            // Provide a backend direct download link that validates token
+            const apiDownloadLink = `${req.protocol}://${req.get('host')}/api/store/download/${order.download_token}`;
+
+            await transporter.sendMail({
+                from: process.env.SMTP_USER || 'itspramod19@gmail.com',
+                to: order.email,
+                subject: `Your download: ${order.StoreItem.title}`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 10px;">
+                        <h2 style="color: #4CAF50;">Payment Successful!</h2>
+                        <p>Thank you for your purchase of <strong>${order.StoreItem.title}</strong>.</p>
+                        <p>Click the button below to download your file securely:</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="${apiDownloadLink}" style="padding: 12px 24px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Download File</a>
+                        </div>
+                        <p style="color: #888; font-size: 12px;">If the button doesn't work, copy and paste this link: <br>${apiDownloadLink}</p>
+                    </div>
+                `
+            });
+            console.log("Email sent successfully to", order.email);
+        } catch (emailErr) {
+            console.error("Email sending failed (expected if not configured):", emailErr.message);
+        }
+
+        res.json({ message: 'Payment confirmed. Email sent.', order });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Download File Route
+app.get('/api/store/download/:token', async (req, res) => {
+    try {
+        const order = await StoreOrder.findOne({
+            where: { download_token: req.params.token, payment_status: 'SUCCESS' },
+            include: [{ model: StoreItem }]
+        });
+
+        if (!order) return res.status(403).json({ message: 'Invalid or unauthorized download token' });
+
+        const filePath = path.join(__dirname, order.StoreItem.file_url);
+        if (fs.existsSync(filePath)) {
+            res.download(filePath);
+        } else {
+            res.status(404).json({ message: 'File not found on server' });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Admin Store Routes
+app.post('/api/admin/store/items', authenticateToken, isAdmin, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'File is required' });
+
+        const { title, description, price } = req.body;
+        const item = await StoreItem.create({
+            title,
+            description,
+            price: parseFloat(price) || 0,
+            file_url: req.file.path, // stored in 'uploads/...'
+            created_by: req.user.id
+        });
+
+        res.status(201).json(item);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/admin/store/items', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const items = await StoreItem.findAll({
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(items);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/admin/store/orders', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const orders = await StoreOrder.findAll({
+            include: [{ model: StoreItem, attributes: ['title', 'price'] }],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(orders);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/admin/store/items/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const item = await StoreItem.findByPk(req.params.id);
+        if (!item) return res.status(404).json({ message: 'Item not found' });
+
+        // Remove file
+        const filePath = path.join(__dirname, item.file_url);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+        await item.destroy();
+        res.json({ message: 'Item deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

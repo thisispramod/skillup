@@ -15,6 +15,10 @@ import AdminReports from './pages/admin/Reports';
 import MistakeAnalytics from './pages/admin/MistakeAnalytics';
 import ManageMockTests from './pages/admin/ManageMockTests';
 import ManageMockTestSections from './pages/admin/ManageMockTestSections';
+import ManageStore from './pages/admin/ManageStore';
+
+import StoreList from './pages/store/StoreList';
+import BuyItem from './pages/store/BuyItem';
 
 import TakeTest from './pages/student/TakeTest';
 import ResultReview from './pages/student/ResultReview';
@@ -45,8 +49,9 @@ const AppContent = () => {
   }
 
   const isAuthPage = ['/login', '/register'].includes(location.pathname);
+  const isPublicPage = location.pathname.startsWith('/store');
 
-  if (!user && !isAuthPage) {
+  if (!user && !isAuthPage && !isPublicPage) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -54,11 +59,13 @@ const AppContent = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (!user || isAuthPage) {
+  if (!user) {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/store" element={<StoreList />} />
+        <Route path="/store/buy/:id" element={<BuyItem />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -82,6 +89,7 @@ const AppContent = () => {
             <Route path="/admin/students" element={<ManageStudents />} />
             <Route path="/admin/reports" element={<AdminReports />} />
             <Route path="/admin/mistake-analytics" element={<MistakeAnalytics />} />
+            <Route path="/admin/store" element={<ManageStore />} />
           </>
         )}
 
@@ -106,6 +114,10 @@ const AppContent = () => {
             <Route path="/student/take-ai-test" element={<TakeAITest />} />
           </>
         )}
+
+        {/* Shared / Public Routes for logged in users */}
+        <Route path="/store" element={<StoreList />} />
+        <Route path="/store/buy/:id" element={<BuyItem />} />
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

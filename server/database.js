@@ -270,6 +270,22 @@ const AIUsageLimit = sequelize.define('AIUsageLimit', {
   count: { type: DataTypes.INTEGER, defaultValue: 0 }
 });
 
+// --- Store Models ---
+const StoreItem = sequelize.define('StoreItem', {
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT },
+  file_url: { type: DataTypes.STRING, allowNull: false },
+  price: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+  created_by: { type: DataTypes.INTEGER, allowNull: false }
+});
+
+const StoreOrder = sequelize.define('StoreOrder', {
+  email: { type: DataTypes.STRING, allowNull: false },
+  payment_status: { type: DataTypes.ENUM('PENDING', 'SUCCESS'), defaultValue: 'PENDING' },
+  payment_ref: { type: DataTypes.STRING },
+  download_token: { type: DataTypes.STRING, unique: true, allowNull: false }
+});
+
 // --- Relationships ---
 
 User.hasMany(Test, { foreignKey: 'created_by' });
@@ -369,6 +385,13 @@ AITestCache.belongsTo(User, { foreignKey: 'user_id' });
 
 User.hasMany(AIUsageLimit, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 AIUsageLimit.belongsTo(User, { foreignKey: 'user_id' });
+
+// Store Relationships
+StoreItem.hasMany(StoreOrder, { foreignKey: 'item_id', onDelete: 'CASCADE' });
+StoreOrder.belongsTo(StoreItem, { foreignKey: 'item_id' });
+
+User.hasMany(StoreItem, { foreignKey: 'created_by' });
+StoreItem.belongsTo(User, { foreignKey: 'created_by' });
 
 
 // --- Initialization ---
@@ -502,4 +525,4 @@ const initDB = async () => {
   }
 };
 
-module.exports = { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, Habit, HabitLog, XPLog, UserQuestionStat, AITestCache, AIUsageLimit, initDB };
+module.exports = { sequelize, User, Test, Question, Attempt, QuestionTime, Class, Batch, Mistake, MockTest, MockTestSection, MockTestQuestion, MockTestAttempt, Habit, HabitLog, XPLog, UserQuestionStat, AITestCache, AIUsageLimit, StoreItem, StoreOrder, initDB };
