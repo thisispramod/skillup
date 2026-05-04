@@ -275,6 +275,7 @@ const StoreItem = sequelize.define('StoreItem', {
   title: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT },
   file_url: { type: DataTypes.STRING, allowNull: false },
+  file_name: { type: DataTypes.STRING, allowNull: true },
   price: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   created_by: { type: DataTypes.INTEGER, allowNull: false }
 });

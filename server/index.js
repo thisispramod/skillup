@@ -2488,7 +2488,19 @@ app.get('/api/store/download/:token', async (req, res) => {
 
         const filePath = path.join(__dirname, order.StoreItem.file_url);
         if (fs.existsSync(filePath)) {
-            res.download(filePath);
+            let downloadName = order.StoreItem.file_name || `${order.StoreItem.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+            
+            // Add timestamp to make it unique but keep original name shape
+            const extIndex = downloadName.lastIndexOf('.');
+            if (extIndex !== -1) {
+                const name = downloadName.substring(0, extIndex);
+                const ext = downloadName.substring(extIndex);
+                downloadName = `${name}_${Date.now()}${ext}`;
+            } else {
+                downloadName = `${downloadName}_${Date.now()}`;
+            }
+
+            res.download(filePath, downloadName);
         } else {
             res.status(404).json({ message: 'File not found on server' });
         }
@@ -2508,6 +2520,7 @@ app.post('/api/admin/store/items', authenticateToken, isAdmin, upload.single('fi
             description,
             price: parseFloat(price) || 0,
             file_url: req.file.path, // stored in 'uploads/...'
+            file_name: req.file.originalname, // save original file name
             created_by: req.user.id
         });
 
@@ -2535,6 +2548,23 @@ app.get('/api/admin/store/orders', authenticateToken, isAdmin, async (req, res) 
             order: [['createdAt', 'DESC']]
         });
         res.json(orders);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/admin/store/items/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const item = await StoreItem.findByPk(req.params.id);
+        if (!item) return res.status(404).json({ message: 'Item not found' });
+
+        const { price } = req.body;
+        if (price !== undefined) {
+            item.price = parseFloat(price) || 0;
+            await item.save();
+        }
+
+        res.json({ message: 'Item updated successfully', item });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

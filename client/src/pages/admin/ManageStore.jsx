@@ -102,6 +102,31 @@ const ManageStore = () => {
         }
     };
 
+    const handleEditPrice = async (item) => {
+        const { value: newPrice } = await Swal.fire({
+            title: 'Edit Price',
+            input: 'number',
+            inputLabel: `Current price: ₹${item.price}`,
+            inputValue: item.price,
+            showCancelButton: true,
+            inputValidator: (value) => {
+                if (!value || value < 0) {
+                    return 'You need to enter a valid positive number!'
+                }
+            }
+        });
+
+        if (newPrice) {
+            try {
+                await api.put(`/admin/store/items/${item.id}`, { price: newPrice });
+                setItems(prev => prev.map(t => t.id === item.id ? { ...t, price: parseFloat(newPrice) } : t));
+                showNotification('Price updated successfully', 'success');
+            } catch (err) {
+                showNotification('Failed to update price', 'error');
+            }
+        }
+    };
+
     if (loading) {
         return <div className="p-8 text-center"><div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto"></div></div>;
     }
@@ -219,6 +244,13 @@ const ManageStore = () => {
                                             <td className="p-4 font-black text-emerald-600 text-lg">₹{item.price}</td>
                                             <td className="p-4 text-sm text-slate-500 font-medium">{new Date(item.createdAt).toLocaleDateString()}</td>
                                             <td className="p-4 text-right">
+                                                <button
+                                                    onClick={() => handleEditPrice(item)}
+                                                    className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-50 group-hover:opacity-100 mr-2"
+                                                    title="Edit Price"
+                                                >
+                                                    <span className="material-symbols-rounded">edit</span>
+                                                </button>
                                                 <button
                                                     onClick={() => handleDelete(item.id)}
                                                     className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors opacity-50 group-hover:opacity-100"
